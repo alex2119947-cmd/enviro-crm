@@ -6,31 +6,49 @@ from datetime import datetime
 st.set_page_config(page_title="Прототип CRM ENVIRO", layout="wide")
 
 # --- ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЯ ---
-# Это "база данных" нашего прототипа
 if 'projects' not in st.session_state:
     st.session_state.projects = []
-
-# Отслеживание текущей страницы
 if 'page' not in st.session_state:
     st.session_state.page = "client_form"
+if 'current_project_id' not in st.session_state:
+    st.session_state.current_project_id = None
 
-# --- БОКОВАЯ ПАНЕЛЬ ДЛЯ НАВИГАЦИИ (переключение ролей) ---
+# --- БОКОВАЯ ПАНЕЛЬ ДЛЯ НАВИГАЦИИ ---
 st.sidebar.title("Навигация")
-role = st.sidebar.radio("Выберите вашу роль:", ("Новый клиент", "Сотрудник ENVIRO"))
+role = st.sidebar.radio("Выберите вашу роль:", ("Новый клиент", "Сотрудник ENVIRO"), key="role_selector")
 
-if role == "Новый клиент":
-    st.session_state.page = "client_form"
-else:
-    st.session_state.page = "employee_dashboard"
+# Логика переключения страниц
+if role == "Сотрудник ENVIRO":
+    if st.sidebar.button("Посмотреть все заявки"):
+        st.session_state.page = "employee_dashboard"
+        st.experimental_rerun()
+else: # Новый клиент
+    # Если мы уже на странице проекта, не показываем кнопку "Заполнить анкету"
+    if st.session_state.page != "client_form":
+         if st.sidebar.button("Заполнить новую анкету"):
+            st.session_state.page = "client_form"
+            st.session_state.current_project_id = None
+            st.experimental_rerun()
+
+st.sidebar.info("Версия прототипа: 2.2")
+
 
 # ==============================================================================
-#                     ВИД КЛИЕНТА: ФОРМА ЗАЯВКИ
+#                     ВИД КЛИЕНТА: ФОРМА ЗАЯВКИ (ГЛАВНАЯ СТРАНИЦА)
 # ==============================================================================
 if st.session_state.page == "client_form":
+    
+    # --- ИЗМЕНЕНИЕ: ДОБАВЛЯЕМ ВИДЕО-ЗАСТАВКУ ---
+    st.header("ENVIRO — комплексные инженерные решения для вашего дома")
+    # Указываем путь к файлу, который будет лежать рядом с app.py
+    st.video("enviro1.mp4") 
+    st.markdown("---")
+
     st.title("📋 Анкета для нового клиента")
     st.write("Пожалуйста, заполните эту форму максимально подробно. Это поможет нам подготовить для вас наилучшее предложение.")
     
     with st.form("client_form_enviro"):
+        # ... (остальной код анкеты без изменений) ...
         st.subheader("1. Контактная информация")
         name = st.text_input("Имя клиента *", placeholder="Алексей")
         phone = st.text_input("Номер телефона *", placeholder="+996 (XXX) XX-XX-XX")
@@ -64,11 +82,9 @@ if st.session_state.page == "client_form":
         submitted = st.form_submit_button("Отправить заявку")
 
         if submitted:
-            # Простая валидация
             if not name or not phone or not address or not area or not insulation:
                 st.error("Пожалуйста, заполните все обязательные поля, отмеченные звездочкой (*).")
             else:
-                # Создаем новый "проект"
                 new_project = {
                     "id": len(st.session_state.projects) + 1,
                     "client_name": name,
@@ -95,7 +111,7 @@ if st.session_state.page == "client_form":
                 st.session_state.projects.append(new_project)
                 st.session_state.current_project_id = new_project["id"]
                 st.session_state.page = "project_page"
-                st.experimental_rerun() # Перезагружаем страницу, чтобы показать страницу проекта
+                st.experimental_rerun()
 
 # ==============================================================================
 #                ВИД СОТРУДНИКА: ПАНЕЛЬ УПРАВЛЕНИЯ
@@ -107,15 +123,13 @@ elif st.session_state.page == "employee_dashboard":
     if not st.session_state.projects:
         st.info("Пока нет ни одной заявки от клиентов.")
     else:
-        # Отображаем заявки в обратном порядке (новые сверху)
         for project in reversed(st.session_state.projects):
             with st.expander(f"Заявка №{project['id']} от {project['submission_date']} - {project['client_name']} ({project['address']})"):
                 st.metric("Статус", project['status'])
-                st.write(f"**Клиент:** {project['client_name']}")
-                st.write(f"**Телефон:** {project['phone']}")
+                st.write(f"**Клиент:** {project['client_name']}, **Телефон:** {project['phone']}")
                 st.write(f"**Площадь дома:** {project['area']} м²")
 
-                if st.button("Просмотреть детали", key=f"details_{project['id']}"):
+                if st.button("Просмотреть детали", key=f"details_btn_{project['id']}"):
                     st.session_state.current_project_id = project['id']
                     st.session_state.page = "project_page"
                     st.experimental_rerun()
@@ -124,66 +138,37 @@ elif st.session_state.page == "employee_dashboard":
 #                ОБЩИЙ ВИД: СТРАНИЦА КОНКРЕТНОГО ПРОЕКТА
 # ==============================================================================
 elif st.session_state.page == "project_page":
-    # Находим текущий проект
     current_project = next((p for p in st.session_state.projects if p['id'] == st.session_state.current_project_id), None)
 
     if current_project is None:
-        st.error("Проект не найден. Пожалуйста, вернитесь на главную страницу.")
-        st.session_state.page = "client_form"
-        if st.button("Вернуться"):
+        st.error("Проект не найден. Пожалуйста, выберите заявку из панели управления.")
+        st.session_state.page = "employee_dashboard"
+        if st.button("Вернуться в панель управления"):
             st.experimental_rerun()
-
     else:
         st.title(f"Страница проекта: {current_project['client_name']}")
+        st.markdown(f"Заявка №{current_project['id']} от {current_project['submission_date']}")
         st.markdown("---")
 
-        # --- 1. БЛОК: СТАТУС ЗАЯВКИ ---
-        st.subheader("1. Статус вашей заявки")
+        st.subheader("1. Статус заявки")
         st.success(current_project['status'])
         st.info(current_project['status_desc'])
         st.markdown("---")
 
-        # --- Детали заявки (может видеть и клиент, и сотрудник) ---
-        with st.expander("Показать/скрыть детали заявки"):
-             st.json(current_project) # Простой способ показать все данные
+        with st.expander("Показать/скрыть полные детали заявки"):
+             display_data = current_project.copy()
+             display_data.pop('chat_history', None)
+             st.json(display_data)
 
-        # --- 2. БЛОК: ЧАТ ---
         st.subheader("2. Чат по проекту")
         
-        # Отображение сообщений
         for message in current_project["chat_history"]:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
-        # Поле для ввода
         if prompt := st.chat_input("Напишите ваш вопрос..."):
             current_project["chat_history"].append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
-
-            # Логика ИИ-агента
-            with st.chat_message("assistant"):
-                # ... (логика ответов бота осталась та же) ...
-                 message_placeholder = st.empty()
-                 time.sleep(1)
-                 assistant_response = "Спасибо за ваше сообщение. Я передал его инженеру."
-                 message_placeholder.markdown(assistant_response)
-
-            current_project["chat_history"].append({"role": "assistant", "content": assistant_response})
             st.experimental_rerun()
 
-        st.markdown("---")
-
-        # --- 3. БЛОК: КАЛЕНДАРЬ ---
-        st.subheader("3. Выберите удобное время для визита инженера")
-        st.write("Если потребуется очный осмотр, вы можете заранее выбрать удобный для вас слот.")
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("Пятница, 30 января, 10:00-12:00"):
-                st.success("Слот предварительно забронирован. Ожидайте подтверждения.")
-                current_project['status'] = "Согласование визита"
-                st.experimental_rerun()
-        # ... и так далее для других кнопок
 
 
