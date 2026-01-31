@@ -11,11 +11,10 @@ CORRECT_PASSWORD = "zxenv2026"
 st.set_page_config(
     page_title="CRM ENVIRO.KG", 
     layout="wide",
-    # --- ИЗМЕНЕНИЕ 2: ПАНЕЛЬ ИЗНАЧАЛЬНО СКРЫТА ---
     initial_sidebar_state="collapsed" 
 )
 
-# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (без изменений) ---
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 def video_to_base64(path):
     if not os.path.exists(path): return None
     with open(path, "rb") as f: return base64.b64encode(f.read()).decode()
@@ -32,9 +31,9 @@ def create_project(data):
     st.session_state.projects.append(new_project)
     st.session_state.current_project_id = new_project["id"]
     st.session_state.page = "project_page"
-    st.experimental_rerun()
+    st.rerun() # ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ
 
-# --- ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЯ (без изменений) ---
+# --- ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЯ ---
 if 'projects' not in st.session_state: st.session_state.projects = []
 if 'page' not in st.session_state: st.session_state.page = "client_form"
 if 'current_project_id' not in st.session_state: st.session_state.current_project_id = None
@@ -54,10 +53,10 @@ else:
     else:
         st.session_state.page = "employee_dashboard"
 
-st.sidebar.info("Версия прототипа: 2.9")
+st.sidebar.info("Версия прототипа: 3.0")
 
 # ==============================================================================
-#                     СТРАНИЦА ВХОДА ДЛЯ СОТРУДНИКА (без изменений)
+#                     СТРАНИЦА ВХОДА ДЛЯ СОТРУДНИКА
 # ==============================================================================
 if st.session_state.page == "login":
     st.title("🔐 Вход для сотрудников")
@@ -66,7 +65,7 @@ if st.session_state.page == "login":
         if password == CORRECT_PASSWORD:
             st.session_state.is_authenticated = True
             st.session_state.page = "employee_dashboard"
-            st.experimental_rerun()
+            st.rerun() # ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ
         else:
             st.error("Неверный пароль.")
 
@@ -74,11 +73,8 @@ if st.session_state.page == "login":
 #                     ГЛАВНАЯ СТРАНИЦА (АНКЕТА)
 # ==============================================================================
 elif st.session_state.page == "client_form":
-    # --- ИЗМЕНЕНИЕ 1: НОВЫЙ ЗАГОЛОВОК ---
     st.title("📋 Заявка в инженерный отдел ENVIRO.KG")
     st.write("Для начала, пожалуйста, укажите тип вашего объекта.")
-    
-    # ... (остальной код анкет и видео без изменений) ...
     object_type = st.radio("Тип объекта:", ('Частный дом', 'Коммерческое помещение'), horizontal=True, label_visibility="collapsed")
     st.markdown("---")
 
@@ -86,18 +82,23 @@ elif st.session_state.page == "client_form":
         st.header("Анкета для Частного Дома")
         with st.form("private_house_form", clear_on_submit=True):
             st.subheader("1. Контактная информация")
-            # ... поля ...
+            name = st.text_input("Имя клиента *", placeholder="Алексей")
+            # ... и т.д.
             submitted = st.form_submit_button("Отправить заявку")
             if submitted:
-                pass # Логика отправки
+                if not name: st.error("Заполните обязательные поля (*).")
+                else: create_project({"object_type": "Частный дом", "client_name": name})
+
     elif object_type == 'Коммерческое помещение':
         st.header("Анкета для Коммерческого Объекта")
         with st.form("commercial_form", clear_on_submit=True):
             st.subheader("1. Контактная информация")
-            # ... поля ...
+            company_name = st.text_input("Название компании *")
+            # ... и т.д.
             submitted = st.form_submit_button("Отправить заявку")
             if submitted:
-                pass # Логика отправки
+                if not company_name: st.error("Заполните обязательные поля (*).")
+                else: create_project({"object_type": "Коммерческое помещение", "company_name": company_name})
     
     st.markdown("---")
     st.header("ENVIRO — в действии")
@@ -108,11 +109,45 @@ elif st.session_state.page == "client_form":
     else: st.warning("Видео-заставка не найдена.")
 
 # ==============================================================================
-#                Остальные страницы (без изменений)
+#                ВИД СОТРУДНИКА: ПАНЕЛЬ УПРАВЛЕНИЯ
 # ==============================================================================
 elif st.session_state.page == "employee_dashboard" and st.session_state.is_authenticated:
-    # ...
-    pass
+    st.title("Панель управления ENVIRO")
+    st.subheader("Входящие заявки")
+    if st.sidebar.button("Выйти", key="logout_button"):
+        st.session_state.is_authenticated = False
+        st.session_state.page = "login"
+        st.rerun() # ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ
+        
+    if not st.session_state.projects:
+        st.info("Пока нет ни одной заявки от клиентов.")
+    else:
+        for project in reversed(st.session_state.projects):
+            client_identifier = project.get('client_name') or project.get('company_name', 'N/A')
+            with st.expander(f"Заявка №{project['id']} от {project['submission_date']} - {client_identifier}"):
+                st.metric("Статус", project['status'])
+                st.write(f"**Тип:** {project['object_type']}")
+                if st.button("Просмотреть детали", key=f"details_btn_{project['id']}"):
+                    st.session_state.current_project_id = project['id']
+                    st.session_state.page = "project_page"
+                    st.rerun() # ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ
+
+# ==============================================================================
+#                ОБЩИЙ ВИД: СТРАНИЦА КОНКРЕТНОГО ПРОЕКТА
+# ==============================================================================
 elif st.session_state.page == "project_page":
-    # ...
-    pass
+    current_project = next((p for p in st.session_state.projects if p['id'] == st.session_state.current_project_id), None)
+    if current_project is None:
+        st.error("Проект не найден.")
+        st.session_state.page = "employee_dashboard" if st.session_state.is_authenticated else "client_form"
+        if st.button("Вернуться"): st.rerun() # ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ
+    else:
+        if st.session_state.is_authenticated:
+            if st.button("← Назад к списку заявок"):
+                st.session_state.page = "employee_dashboard"
+                st.session_state.current_project_id = None
+                st.rerun() # ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ
+        
+        client_identifier = current_project.get('client_name') or current_project.get('company_name', 'N/A')
+        st.title(f"Страница проекта: {client_identifier}")
+        # ... остальная часть страницы
