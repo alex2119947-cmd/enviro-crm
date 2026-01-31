@@ -16,7 +16,6 @@ def video_to_base64(path):
         return base64.b64encode(video_file.read()).decode()
 
 # --- ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЯ ---
-# ... (остальная часть инициализации без изменений) ...
 if 'projects' not in st.session_state:
     st.session_state.projects = []
 if 'page' not in st.session_state:
@@ -39,7 +38,7 @@ else:
             st.session_state.current_project_id = None
             st.experimental_rerun()
 
-st.sidebar.info("Версия прототипа: 2.3")
+st.sidebar.info("Версия прототипа: 2.4")
 
 
 # ==============================================================================
@@ -47,31 +46,11 @@ st.sidebar.info("Версия прототипа: 2.3")
 # ==============================================================================
 if st.session_state.page == "client_form":
     
-    st.header("ENVIRO — комплексные инженерные решения для вашего дома")
-
-    # --- ИЗМЕНЕНИЕ: ЗАМЕНЯЕМ st.video НА HTML-КОД С АВТОПРОИГРЫВАНИЕМ ---
-    video_path = "enviro1.mp4"
-    video_base64 = video_to_base64(video_path)
-
-    if video_base64:
-        video_html = f"""
-            <video autoplay loop muted playsinline width="100%">
-              <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
-              Your browser does not support the video tag.
-            </video>
-            """
-        st.markdown(video_html, unsafe_allow_html=True)
-    else:
-        # Запасной вариант, если видеофайл не найден
-        st.warning("Видео-заставка не найдена. Убедитесь, что файл 'enviro1.mp4' загружен в репозиторий.")
-
-    st.markdown("---")
-
     st.title("📋 Анкета для нового клиента")
-    st.write("Пожалуйста, заполните эту форму максимально подробно.")
+    st.write("Пожалуйста, заполните эту форму максимально подробно, чтобы мы могли подготовить для вас наилучшее предложение.")
     
     with st.form("client_form_enviro"):
-        # ... (остальной код анкеты остался без изменений) ...
+        # ... (Код формы остался без изменений) ...
         st.subheader("1. Контактная информация")
         name = st.text_input("Имя клиента *", placeholder="Алексей")
         phone = st.text_input("Номер телефона *", placeholder="+996 (XXX) XX-XX-XX")
@@ -98,6 +77,7 @@ if st.session_state.page == "client_form":
         questions = st.text_area("Ваши вопросы")
         st.markdown("---")
         submitted = st.form_submit_button("Отправить заявку")
+
         if submitted:
             if not name or not phone or not address or not area or not insulation:
                 st.error("Пожалуйста, заполните все обязательные поля, отмеченные звездочкой (*).")
@@ -110,6 +90,23 @@ if st.session_state.page == "client_form":
                 st.session_state.current_project_id = new_project["id"]
                 st.session_state.page = "project_page"
                 st.experimental_rerun()
+
+    # --- ИЗМЕНЕНИЕ: ПЕРЕНОСИМ ВИДЕО-ЗАСТАВКУ В КОНЕЦ СТРАНИЦЫ ---
+    st.markdown("---")
+    st.header("ENVIRO — комплексные инженерные решения в действии")
+    
+    video_path = "enviro1.mp4"
+    video_base64 = video_to_base64(video_path)
+
+    if video_base64:
+        video_html = f"""
+            <video autoplay loop muted playsinline width="100%">
+              <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
+            </video>
+            """
+        st.markdown(video_html, unsafe_allow_html=True)
+    else:
+        st.warning("Видео-заставка не найдена. Убедитесь, что файл 'enviro1.mp4' загружен в репозиторий.")
 
 # ==============================================================================
 #                Остальные страницы (Панель управления и Страница проекта)
@@ -124,36 +121,3 @@ elif st.session_state.page == "employee_dashboard":
         for project in reversed(st.session_state.projects):
             with st.expander(f"Заявка №{project['id']} от {project['submission_date']} - {project['client_name']} ({project['address']})"):
                 st.metric("Статус", project['status'])
-                st.write(f"**Клиент:** {project['client_name']}, **Телефон:** {project['phone']}")
-                st.write(f"**Площадь дома:** {project['area']} м²")
-                if st.button("Просмотреть детали", key=f"details_btn_{project['id']}"):
-                    st.session_state.current_project_id = project['id']
-                    st.session_state.page = "project_page"
-                    st.experimental_rerun()
-
-elif st.session_state.page == "project_page":
-    current_project = next((p for p in st.session_state.projects if p['id'] == st.session_state.current_project_id), None)
-    if current_project is None:
-        st.error("Проект не найден. Пожалуйста, выберите заявку из панели управления.")
-        if st.button("Вернуться в панель управления"):
-            st.session_state.page = "employee_dashboard"
-            st.experimental_rerun()
-    else:
-        st.title(f"Страница проекта: {current_project['client_name']}")
-        st.markdown(f"Заявка №{current_project['id']} от {current_project['submission_date']}")
-        st.markdown("---")
-        st.subheader("1. Статус заявки")
-        st.success(current_project['status'])
-        st.info(current_project['status_desc'])
-        st.markdown("---")
-        with st.expander("Показать/скрыть полные детали заявки"):
-             display_data = current_project.copy()
-             display_data.pop('chat_history', None)
-             st.json(display_data)
-        st.subheader("2. Чат по проекту")
-        for message in current_project["chat_history"]:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-        if prompt := st.chat_input("Напишите ваш вопрос..."):
-            current_project["chat_history"].append({"role": "user", "content": prompt})
-            st.experimental_rerun()
