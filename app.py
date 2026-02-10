@@ -33,7 +33,7 @@ def send_telegram_notification(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {'chat_id': TELEGRAM_CHAT_ID, 'text': message, 'parse_mode': 'Markdown'}
     try:
-        requests.post(url, json=payload)
+        requests.post(url, json=payload, timeout=5)
     except requests.exceptions.RequestException as e:
         print(f"Ошибка отправки уведомления в Telegram: {e}")
 
@@ -91,26 +91,23 @@ def handle_role_change():
 
 st.sidebar.title("Навигация")
 st.sidebar.radio("Выберите вашу роль:", ("Новый клиент", "Сотрудник ENVIRO"), key="role_selector", on_change=handle_role_change)
-st.sidebar.info("Версия: 4.6 (Исправление синтаксиса)")
+st.sidebar.info("Версия: 4.7 (UI фикс)")
 
 # ==============================================================================
-#                     СТРАНИЦА ВХОДА
+#                     ОСНОВНАЯ ЛОГИКА ОТОБРАЖЕНИЯ СТРАНИЦ
 # ==============================================================================
-if st.session_state.get('page') == "login":
+current_page = st.session_state.get('page', 'client_form')
+
+if current_page == "login":
     st.title("🔐 Вход для сотрудников")
     password = st.text_input("Пароль:", type="password")
     if st.button("Войти"):
         if password == CORRECT_PASSWORD:
-            st.session_state.is_authenticated = True
-            st.session_state.page = "employee_dashboard"
-            st.rerun()
+            st.session_state.is_authenticated = True; st.session_state.page = "employee_dashboard"; st.rerun()
         else:
             st.error("Неверный пароль.")
 
-# ==============================================================================
-#                     ГЛАВНАЯ СТРАНИЦА (АНКЕТА)
-# ==============================================================================
-elif st.session_state.get('page') == "client_form":
+elif current_page == "client_form":
     st.title("📋 Заявка в инженерный отдел ENVIRO.KG")
     object_type = st.radio("Тип объекта:", ('Частный дом', 'Коммерческое помещение'), horizontal=True, label_visibility="collapsed")
     st.markdown("---")
@@ -118,7 +115,6 @@ elif st.session_state.get('page') == "client_form":
         st.subheader("5. Загрузка файлов"); st.caption("Вы можете прикрепить несколько файлов: планы, схемы, фотографии объекта и т.д.")
         return st.file_uploader(label="**Нажмите, чтобы выбрать файлы, или перетащите их в эту область**", type=['jpg', 'png', 'jpeg', 'pdf', 'doc', 'docx'], accept_multiple_files=True)
     if object_type == 'Частный дом':
-        st.header("Анкета для Частного Дома")
         with st.form("private_house_form", clear_on_submit=True):
             st.subheader("1. Контактная информация"); name = st.text_input("Имя клиента \*"); phone = st.text_input("Номер телефона \*"); email = st.text_input("Email")
             st.subheader("2. Информация об объекте"); address = st.text_input("Точный адрес \*"); col1, col2 = st.columns(2)
@@ -128,45 +124,35 @@ elif st.session_state.get('page') == "client_form":
             with col3: heating_type = st.text_input("Используемый вид отопления зимой"); power_phases = st.text_input("Сколько фаз идёт на объект"); cooling_type = st.text_input("Используемый вид охлаждения летом")
             with col4: coal_usage = st.number_input("Кол-во сжигаемого угля в мес. (тонн)"); energy_usage_kwh = st.number_input("Расход кВт\*ч в мес."); energy_usage_som = st.number_input("Расход на энергию/отопление в мес. (сом)")
             st.subheader("4. Дополнительно"); wishes = st.text_area("Ваши пожелания"); questions = st.text_area("Ваши вопросы"); uploaded_files = shared_form_elements(); st.markdown("---")
-            submitted = st.form_submit_button("Отправить заявку")
-            if submitted:
+            if st.form_submit_button("Отправить заявку"):
                 if not name or not phone or not address: st.error("Заполните обязательные поля (\*).")
-                else: files_info = [{"name": f.name, "size": f.size} for f in uploaded_files]; create_project({"object_type": "Частный дом", "client_name": name, "phone": phone, "email": email, "address": address, "area": area, "plot_size": plot_size, "floors": floors, "insulation": insulation, "boiler_location": boiler_location, "heating_type": heating_type, "power_phases": power_phases, "cooling_type": cooling_type, "coal_usage": coal_usage, "energy_usage_kwh": energy_usage_kwh, "energy_usage_som": energy_usage_som, "wishes": wishes, "questions": questions, "uploaded_files_info": files_info})
-    elif object_type == 'Коммерческое помещение':
-        st.header("Анкета для Коммерческого Объекта")
+                else: create_project({"object_type": "Частный дом", "client_name": name, "phone": phone, "email": email, "address": address, "area": area, "plot_size": plot_size, "floors": floors, "insulation": insulation, "boiler_location": boiler_location, "heating_type": heating_type, "power_phases": power_phases, "cooling_type": cooling_type, "coal_usage": coal_usage, "energy_usage_kwh": energy_usage_kwh, "energy_usage_som": energy_usage_som, "wishes": wishes, "questions": questions, "uploaded_files_info": [{"name": f.name, "size": f.size} for f in uploaded_files]})
+    else: # 'Коммерческое помещение'
         with st.form("commercial_form", clear_on_submit=True):
             st.subheader("1. Контактная информация"); company_name = st.text_input("Название компании \*"); contact_person = st.text_input("Контактное лицо \*"); phone = st.text_input("Номер телефона \*"); email = st.text_input("Email")
             st.subheader("2. Информация об объекте"); address = st.text_input("Адрес объекта \*"); activity_type = st.text_input("Тип деятельности", placeholder="Например, кафе, офис, производство"); area = st.number_input("Общая площадь (м²)", min_value=10)
             st.subheader("3. Дополнительно"); wishes = st.text_area("Ваши пожелания и технические требования"); uploaded_files = shared_form_elements(); st.markdown("---")
-            submitted = st.form_submit_button("Отправить заявку")
-            if submitted:
+            if st.form_submit_button("Отправить заявку"):
                 if not company_name or not contact_person or not phone: st.error("Заполните обязательные поля (\*).")
-                else: files_info = [{"name": f.name, "size": f.size} for f in uploaded_files]; create_project({"object_type": "Коммерческое помещение", "company_name": company_name, "contact_person": contact_person, "phone": phone, "email": email, "address": address, "activity_type": activity_type, "area": area, "wishes": wishes, "uploaded_files_info": files_info})
-    st.markdown("---"); st.header("ENVIRO — в действии"); video_path = "enviro1.mp4"; video_base64 = video_to_base64(video_path)
-    if video_base64: st.markdown(f'<video autoplay loop muted playsinline width="100%"><source src="data:video/mp4;base64,{video_base64}" type="video/mp4"></video>', unsafe_allow_html=True)
+                else: create_project({"object_type": "Коммерческое помещение", "company_name": company_name, "contact_person": contact_person, "phone": phone, "email": email, "address": address, "activity_type": activity_type, "area": area, "wishes": wishes, "uploaded_files_info": [{"name": f.name, "size": f.size} for f in uploaded_files]})
+    video_base64 = video_to_base64("enviro1.mp4")
+    if video_base64: st.markdown(f'<hr><div style="text-align: center;"><h2>ENVIRO — в действии</h2><video autoplay loop muted playsinline width="100%"><source src="data:video/mp4;base64,{video_base64}" type="video/mp4"></video></div>', unsafe_allow_html=True)
 
-# ==============================================================================
-#                ПАНЕЛЬ УПРАВЛЕНИЯ
-# ==============================================================================
-elif st.session_state.get('page') == "employee_dashboard" and st.session_state.get('is_authenticated'):
+elif current_page == "employee_dashboard" and st.session_state.get('is_authenticated'):
     st.title("Панель управления ENVIRO")
     st.subheader("Входящие заявки")
     if st.sidebar.button("Выйти"): st.session_state.is_authenticated = False; st.session_state.page = "client_form"; st.rerun()
     if not st.session_state.projects: st.info("Пока нет ни одной заявки от клиентов.")
     else:
-        sorted_projects = sorted(st.session_state.projects, key=lambda p: p['id'], reverse=True)
-        for project in sorted_projects:
-            client_identifier = project.get('client_name') or project.get('company_name', 'N/A')
+        for project in sorted(st.session_state.projects, key=lambda p: p['id'], reverse=True):
+            client_id = project.get('client_name') or project.get('company_name', 'N/A')
             engineer = project.get('assigned_engineer', 'Не назначен')
-            with st.expander(f"Заявка №{project['id']} от {project['submission_date']} - {client_identifier} (Ответственный: {engineer})"):
+            with st.expander(f"Заявка №{project['id']} от {project['submission_date']} - {client_id} (Ответственный: {engineer})"):
                 st.metric("Статус", project['status'])
                 st.write(f"**Тип:** {project['object_type']}")
                 if st.button("Просмотреть детали", key=f"details_btn_{project['id']}"): st.session_state.current_project_id = project['id']; st.session_state.page = "project_page"; st.rerun()
 
-# ==============================================================================
-#                СТРАНИЦА ПРОЕКТА
-# ==============================================================================
-elif st.session_state.get('page') == "project_page":
+elif current_page == "project_page":
     project_id = st.session_state.get('current_project_id')
     current_project = next((p for p in st.session_state.projects if p['id'] == project_id), None)
     if current_project is None:
@@ -174,82 +160,45 @@ elif st.session_state.get('page') == "project_page":
         if st.button("Вернуться на главную"): st.session_state.page = "employee_dashboard" if st.session_state.get('is_authenticated') else "client_form"; st.session_state.current_project_id = None; st.rerun()
     else:
         is_auth = st.session_state.get('is_authenticated')
-        client_identifier = current_project.get('client_name') or current_project.get('company_name', 'N/A')
+        client_id = current_project.get('client_name') or current_project.get('company_name', 'N/A')
         if is_auth and st.button("← Назад к списку заявок"): st.session_state.page = "employee_dashboard"; st.session_state.current_project_id = None; st.rerun()
-        st.title(f"Страница проекта: {client_identifier}"); st.markdown(f"Заявка №{current_project['id']} от {current_project['submission_date']}\n\n---")
+        st.title(f"Страница проекта: {client_id}"); st.markdown(f"Заявка №{current_project['id']} от {current_project['submission_date']}\n\n---")
         st.subheader("1. Статус заявки"); st.success(current_project['status']); st.info(current_project['status_desc']); st.markdown("---")
         with st.expander("2. Показать/скрыть детали заявки"):
             field_map = {"object_type": "Тип объекта", "client_name": "Имя клиента", "company_name": "Название компании","contact_person": "Контактное лицо", "phone": "Номер телефона", "email": "Email", "address": "Адрес", "area": "Площадь (м²)", "plot_size": "Размер участка (соток)", "floors": "Этажность", "insulation": "Утепление", "boiler_location": "Расположение котельной", "activity_type": "Тип деятельности", "heating_type": "Вид отопления зимой", "cooling_type": "Вид охлаждения летом", "power_phases": "Количество фаз", "coal_usage": "Расход угля в мес. (тонн)", "energy_usage_kwh": "Расход кВт*ч в мес.", "energy_usage_som": "Расход на энергию в мес. (сом)", "wishes": "Пожелания", "questions": "Вопросы"}
             col1, col2 = st.columns(2)
             def display_field(project, key, label):
                 value = project.get(key);
-                if value: st.markdown(f"**{label}:**\n\n{value}")
+                if value is not None and value != '': st.markdown(f"**{label}:**\n\n{value}")
                 else: st.markdown(f"**{label}:**\n\n_не заполнено_")
+            
+            # <<< ИСПРАВЛЕНИЕ ЗДЕСЬ: замена list comprehension на обычные циклы for >>>
             with col1:
-                st.markdown("##### **Общая информация**"); [display_field(current_project, key, field_map[key]) for key in ["object_type", "client_name", "company_name", "contact_person", "phone", "email", "address", "activity_type"] if key in current_project]
+                st.markdown("##### **Общая информация**")
+                for key in ["object_type", "client_name", "company_name", "contact_person", "phone", "email", "address", "activity_type"]:
+                    if key in current_project: display_field(current_project, key, field_map[key])
             with col2:
-                st.markdown("##### **Параметры и системы**"); [display_field(current_project, key, field_map[key]) for key in ["area", "plot_size", "floors", "insulation", "boiler_location", "heating_type", "cooling_type", "power_phases", "coal_usage", "energy_usage_kwh", "energy_usage_som"] if key in current_project]
-                st.markdown("##### **Дополнительно от клиента**"); [display_field(current_project, key, field_map[key]) for key in ["wishes", "questions"] if key in current_project]
+                st.markdown("##### **Параметры и системы**")
+                for key in ["area", "plot_size", "floors", "insulation", "boiler_location", "heating_type", "cooling_type", "power_phases", "coal_usage", "energy_usage_kwh", "energy_usage_som"]:
+                    if key in current_project: display_field(current_project, key, field_map[key])
+                st.markdown("##### **Дополнительно от клиента**")
+                for key in ["wishes", "questions"]:
+                    if key in current_project: display_field(current_project, key, field_map[key])
+
         if is_auth:
             st.markdown("---"); st.subheader("3. Управление проектом (внутренняя информация)")
             try: current_status_index = STATUS_OPTIONS.index(current_project.get('status'))
             except ValueError: current_status_index = 0
             try: current_engineer_index = ENGINEER_OPTIONS.index(current_project.get('assigned_engineer'))
             except ValueError: current_engineer_index = 0
-            col1, col2 = st.columns(2)
-            with col1:
-                new_status = st.selectbox("Изменить статус:", STATUS_OPTIONS, index=current_status_index)
-                new_engineer = st.selectbox("Назначить инженера:", ENGINEER_OPTIONS, index=current_engineer_index)
-            with col2: new_status_desc = st.text_area("Новое описание статуса для клиента:", value=current_project.get('status_desc', ''))
+            col1_eng, col2_eng = st.columns(2)
+            with col1_eng:
+                new_status = st.selectbox("Изменить статус:", STATUS_OPTIONS, index=current_status_index); new_engineer = st.selectbox("Назначить инженера:", ENGINEER_OPTIONS, index=current_engineer_index)
+            with col2_eng: new_status_desc = st.text_area("Новое описание статуса для клиента:", value=current_project.get('status_desc', ''))
             if st.button("Сохранить изменения статуса и инженера"):
                 current_project['status'] = new_status; current_project['status_desc'] = new_status_desc; current_project['assigned_engineer'] = new_engineer
                 save_projects(st.session_state.projects); st.success("Изменения сохранены!"); time.sleep(1); st.rerun()
             st.markdown("---"); st.markdown("##### Внутренние комментарии")
             with st.form("note_form", clear_on_submit=True):
                 new_note_text = st.text_area("Написать новый комментарий (виден только сотрудникам):")
-                attached_files = st.file_uploader("Прикрепить файлы к комментарию (сметы, фото и т.д.):", accept_multiple_files=True, key=f"internal_uploader_{project_id}")
-                submitted_note = st.form_submit_button("Добавить комментарий")
-                if submitted_note and (new_note_text or attached_files):
-                    attachments_info = []
-                    for uploaded_file in attached_files:
-                        unique_filename = f"{project_id}_{int(time.time())}_{uploaded_file.name}"
-                        save_path = os.path.join(UPLOAD_DIR, unique_filename)
-                        with open(save_path, "wb") as f: f.write(uploaded_file.getbuffer())
-                        attachments_info.append({"original_name": uploaded_file.name, "saved_path": save_path})
-                    new_note = {"timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"), "author": "Сотрудник", "text": new_note_text, "attachments": attachments_info}
-                    current_project.setdefault('internal_notes', []).append(new_note)
-                    save_projects(st.session_state.projects); st.rerun()
-            internal_notes = current_project.get('internal_notes', [])
-            if not internal_notes: st.info("Внутренних комментариев по этому проекту еще нет.")
-            else:
-                with st.expander("Показать/скрыть историю комментариев", expanded=True):
-                    for note in reversed(internal_notes):
-                        st.markdown(f"**{note['author']}** ({note['timestamp']})")
-                        if note.get('text'): st.text(note['text'])
-                        if note.get('attachments'):
-                            st.markdown("**Прикрепленные файлы:**")
-                            for attachment in note['attachments']:
-                                if os.path.exists(attachment['saved_path']):
-                                    with open(attachment['saved_path'], "rb") as fp:
-                                        st.download_button(label=f"📎 {attachment['original_name']}", data=fp, file_name=attachment['original_name'], key=f"download_{attachment['saved_path']}")
-                                else: st.warning(f"Файл '{attachment['original_name']}' не найден.")
-                        st.markdown("---")
-        st.markdown("---"); st.subheader("4. Загруженные файлы");
-        uploaded_files_info = current_project.get("uploaded_files_info", [])
-        if uploaded_files_info:
-            for file_info in uploaded_files_info:
-                size_mb = file_info.get('size', 0) / (1024*1024); st.info(f"📄 {file_info.get('name', 'N/A')} ({size_mb:.2f} MB)")
-        else: st.write("Клиент не прикрепил файлы.")
-        st.markdown("---"); st.subheader("5. Чат по проекту");
-        for message in current_project.get("chat_history", []):
-            with st.chat_message(message["role"]): st.markdown(message["content"])
-        if prompt := st.chat_input("Напишите ваш вопрос..."):
-            role = "assistant" if is_auth else "user"
-            current_project["chat_history"].append({"role": role, "content": prompt})
-            if role == "user":
-                notification_message = (f"💬 *Новое сообщение от клиента* в заявке №{current_project['id']}\n\n"
-                                        f"👤 *Клиент:* {client_identifier}\n"
-                                        f"✉️ *Сообщение:* {prompt}")
-                send_telegram_notification(notification_message)
-            save_projects(st.session_state.projects)
-            st.rerun()
+                attached_files = st.file_uploader("Прикрепить файлы к комментарию (сметы, фото и т.д.
