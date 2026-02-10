@@ -91,7 +91,7 @@ def handle_role_change():
 
 st.sidebar.title("Навигация")
 st.sidebar.radio("Выберите вашу роль:", ("Новый клиент", "Сотрудник ENVIRO"), key="role_selector", on_change=handle_role_change)
-st.sidebar.info("Версия: 4.7 (UI фикс)")
+st.sidebar.info("Версия: 4.8 (Синтакс-фикс)")
 
 # ==============================================================================
 #                     ОСНОВНАЯ ЛОГИКА ОТОБРАЖЕНИЯ СТРАНИЦ
@@ -163,42 +163,4 @@ elif current_page == "project_page":
         client_id = current_project.get('client_name') or current_project.get('company_name', 'N/A')
         if is_auth and st.button("← Назад к списку заявок"): st.session_state.page = "employee_dashboard"; st.session_state.current_project_id = None; st.rerun()
         st.title(f"Страница проекта: {client_id}"); st.markdown(f"Заявка №{current_project['id']} от {current_project['submission_date']}\n\n---")
-        st.subheader("1. Статус заявки"); st.success(current_project['status']); st.info(current_project['status_desc']); st.markdown("---")
-        with st.expander("2. Показать/скрыть детали заявки"):
-            field_map = {"object_type": "Тип объекта", "client_name": "Имя клиента", "company_name": "Название компании","contact_person": "Контактное лицо", "phone": "Номер телефона", "email": "Email", "address": "Адрес", "area": "Площадь (м²)", "plot_size": "Размер участка (соток)", "floors": "Этажность", "insulation": "Утепление", "boiler_location": "Расположение котельной", "activity_type": "Тип деятельности", "heating_type": "Вид отопления зимой", "cooling_type": "Вид охлаждения летом", "power_phases": "Количество фаз", "coal_usage": "Расход угля в мес. (тонн)", "energy_usage_kwh": "Расход кВт*ч в мес.", "energy_usage_som": "Расход на энергию в мес. (сом)", "wishes": "Пожелания", "questions": "Вопросы"}
-            col1, col2 = st.columns(2)
-            def display_field(project, key, label):
-                value = project.get(key);
-                if value is not None and value != '': st.markdown(f"**{label}:**\n\n{value}")
-                else: st.markdown(f"**{label}:**\n\n_не заполнено_")
-            
-            # <<< ИСПРАВЛЕНИЕ ЗДЕСЬ: замена list comprehension на обычные циклы for >>>
-            with col1:
-                st.markdown("##### **Общая информация**")
-                for key in ["object_type", "client_name", "company_name", "contact_person", "phone", "email", "address", "activity_type"]:
-                    if key in current_project: display_field(current_project, key, field_map[key])
-            with col2:
-                st.markdown("##### **Параметры и системы**")
-                for key in ["area", "plot_size", "floors", "insulation", "boiler_location", "heating_type", "cooling_type", "power_phases", "coal_usage", "energy_usage_kwh", "energy_usage_som"]:
-                    if key in current_project: display_field(current_project, key, field_map[key])
-                st.markdown("##### **Дополнительно от клиента**")
-                for key in ["wishes", "questions"]:
-                    if key in current_project: display_field(current_project, key, field_map[key])
-
-        if is_auth:
-            st.markdown("---"); st.subheader("3. Управление проектом (внутренняя информация)")
-            try: current_status_index = STATUS_OPTIONS.index(current_project.get('status'))
-            except ValueError: current_status_index = 0
-            try: current_engineer_index = ENGINEER_OPTIONS.index(current_project.get('assigned_engineer'))
-            except ValueError: current_engineer_index = 0
-            col1_eng, col2_eng = st.columns(2)
-            with col1_eng:
-                new_status = st.selectbox("Изменить статус:", STATUS_OPTIONS, index=current_status_index); new_engineer = st.selectbox("Назначить инженера:", ENGINEER_OPTIONS, index=current_engineer_index)
-            with col2_eng: new_status_desc = st.text_area("Новое описание статуса для клиента:", value=current_project.get('status_desc', ''))
-            if st.button("Сохранить изменения статуса и инженера"):
-                current_project['status'] = new_status; current_project['status_desc'] = new_status_desc; current_project['assigned_engineer'] = new_engineer
-                save_projects(st.session_state.projects); st.success("Изменения сохранены!"); time.sleep(1); st.rerun()
-            st.markdown("---"); st.markdown("##### Внутренние комментарии")
-            with st.form("note_form", clear_on_submit=True):
-                new_note_text = st.text_area("Написать новый комментарий (виден только сотрудникам):")
-                attached_files = st.file_uploader("Прикрепить файлы к комментарию (сметы, фото и т.д.
+        st.subheader("1. Статус заявки"); st.success(current_project['status']); st.info(current_project['status
