@@ -10,7 +10,7 @@ from datetime import datetime
 import pandas as pd
 import requests
 import streamlit as st
-from fpdf import FPDF # Для PDF
+from fpdf import FPDF
 
 # ==============================================================================
 # Конфигурация
@@ -33,8 +33,7 @@ ENGINEER_OPTIONS = [
     "Евгений П.",
     "Другой специалист",
 ]
-# Путь к файлу шрифта, который вы загрузили
-FONT_PATH = "DejaVuSans.ttf" 
+FONT_PATH = "DejaVuSans.ttf"
 
 # ==============================================================================
 # Настройка Telegram
@@ -59,6 +58,7 @@ st.set_page_config(
 # ==============================================================================
 
 def send_telegram_notification(message):
+    """Отправляет уведомление в Telegram."""
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -69,6 +69,7 @@ def send_telegram_notification(message):
         print(f"Ошибка отправки Telegram: {e}")
 
 def load_projects():
+    """Загружает проекты из JSON-файла."""
     if not os.path.exists(DATA_FILE):
         return []
     try:
@@ -78,10 +79,12 @@ def load_projects():
         return []
 
 def save_projects(data):
+    """Сохраняет проекты в JSON-файл."""
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 def create_project(data):
+    """Создает новый проект."""
     all_projects = st.session_state.get("projects", [])
     max_id = max(p["id"] for p in all_projects) if all_projects else 0
     new_project = {
@@ -119,56 +122,70 @@ def create_project_pdf(project_data):
     """Генерирует PDF-документ из данных проекта."""
     pdf = FPDF()
     pdf.add_page()
-
     if not os.path.exists(FONT_PATH):
-        st.error(f"Шрифт не найден по пути: {FONT_PATH}. PDF не может быть создан с кириллицей.")
+        st.error(f"Шрифт не найден: {FONT_PATH}. PDF не может быть создан с кириллицей.")
         return None
-        
     pdf.add_font("DejaVu", "", FONT_PATH, uni=True)
-    pdf.set_font("DejaVu", size=14)
-
+    pdf.set_font("DejaVu", "", 14)
     client_name = project_data.get("client_name") or project_data.get("company_name", "N/A")
     pdf.set_font_size(20)
     pdf.cell(0, 10, f"Заявка №{project_data.get('id', 'N/A')} - {client_name}", 0, 1, "C")
     pdf.set_font_size(10)
-    pdf.cell(0, 10, f"Дата: {project_data.get('submission_date', '')} | Статус: {project_data.get('status', '')}", 0, 1, "C")
+    pdf.cell(
+        0,
+        10,
+        f"Дата: {project_data.get('submission_date', '')} | Статус: {project_data.get('status', '')}",
+        0,
+        1,
+        "C",
+    )
     pdf.ln(10)
 
     def add_row(label, value):
-        pdf.set_font("DejaVu", "B", size=12)
-        pdf.cell(50, 10, str(label), 0, 0)
-        pdf.set_font("DejaVu", "", size=12)
+        pdf.set_font("DejaVu", "", 13)
+        pdf.cell(60, 10, str(label), 0, 0)
+        pdf.set_font("DejaVu", "", 12)
         pdf.multi_cell(0, 10, str(value) if value not in [None, ""] else "_не заполнено_", 0, 1)
 
-    field_map = { "object_type": "Тип объекта", "client_name": "Имя клиента", "company_name": "Название компании", "contact_person": "Контактное лицо", "phone": "Номер телефона", "email": "Email", "address": "Адрес", "area": "Площадь (м²)", "plot_size": "Размер участка (соток)", "floors": "Этажность", "insulation": "Утепление", "boiler_location": "Расположение котельной", "activity_type": "Тип деятельности", "heating_type": "Вид отопления зимой", "cooling_type": "Вид охлаждения летом", "power_phases": "Количество фаз", "coal_usage": "Расход угля (тонн/мес)", "energy_usage_kwh": "Расход кВт*ч/мес", "energy_usage_som": "Расход на энергию (сом/мес)", "wishes": "Пожелания", "questions": "Вопросы" }
-    
+    field_map = {"object_type": "Тип объекта", "client_name": "Имя клиента", "company_name": "Название компании", "contact_person": "Контактное лицо", "phone": "Номер телефона", "email": "Email", "address": "Адрес", "area": "Площадь (м²)", "plot_size": "Размер участка (соток)", "floors": "Этажность", "insulation": "Утепление", "boiler_location": "Расположение котельной", "activity_type": "Тип деятельности", "heating_type": "Вид отопления зимой", "cooling_type": "Вид охлаждения летом", "power_phases": "Количество фаз", "coal_usage": "Расход угля (тонн/мес)", "energy_usage_kwh": "Расход кВт*ч/мес", "energy_usage_som": "Расход на энергию (сом/мес)", "wishes": "Пожелания", "questions": "Вопросы"}
     for key, label in field_map.items():
         if key in project_data:
             add_row(f"{label}:", project_data[key])
-    
     return pdf.output(dest="S").encode("latin1")
 
 # ==============================================================================
 # Инициализация Session State
 # ==============================================================================
-if "projects" not in st.session_state: st.session_state.projects = load_projects()
-if "page" not in st.session_state: st.session_state.page = "client_form"
-if "current_project_id" not in st.session_state: st.session_state.current_project_id = None
-if "is_authenticated" not in st.session_state: st.session_state.is_authenticated = False
-if "edit_mode" not in st.session_state: st.session_state.edit_mode = False
+if "projects" not in st.session_state:
+    st.session_state.projects = load_projects()
+if "page" not in st.session_state:
+    st.session_state.page = "client_form"
+if "current_project_id" not in st.session_state:
+    st.session_state.current_project_id = None
+if "is_authenticated" not in st.session_state:
+    st.session_state.is_authenticated = False
+if "edit_mode" not in st.session_state:
+    st.session_state.edit_mode = False
 
 # ==============================================================================
 # Боковая панель (Sidebar)
 # ==============================================================================
 def handle_role_change():
-    if st.session_state.role_selector == "Сотрудник ENVIRO": st.session_state.page = "login" if not st.session_state.get("is_authenticated") else "employee_dashboard"
-    else: st.session_state.page = "client_form"
+    if st.session_state.role_selector == "Сотрудник ENVIRO":
+        st.session_state.page = ("login" if not st.session_state.get("is_authenticated") else "employee_dashboard")
+    else:
+        st.session_state.page = "client_form"
     st.session_state.current_project_id = None
     st.session_state.edit_mode = False
 
 st.sidebar.title("Навигация")
-st.sidebar.radio("Выберите вашу роль:", ("Новый клиент", "Сотрудник ENVIRO"), key="role_selector", on_change=handle_role_change)
-st.sidebar.info("Версия: 5.7 (Экспорт в PDF)")
+st.sidebar.radio(
+    "Выберите вашу роль:",
+    ("Новый клиент", "Сотрудник ENVIRO"),
+    key="role_selector",
+    on_change=handle_role_change,
+)
+st.sidebar.info("Версия: 5.8 (Фикс PDF)")
 
 # ==============================================================================
 # Основная логика отображения страниц
@@ -176,18 +193,26 @@ st.sidebar.info("Версия: 5.7 (Экспорт в PDF)")
 current_page = st.session_state.get("page", "client_form")
 
 if current_page == "login":
-    # ... (код без изменений)
-    st.title("🔐 Вход для сотрудников"); password = st.text_input("Пароль:", type="password")
+    st.title("🔐 Вход для сотрудников")
+    password = st.text_input("Пароль:", type="password")
     if st.button("Войти"):
-        if password == CORRECT_PASSWORD: st.session_state.is_authenticated = True; st.session_state.page = "employee_dashboard"; st.rerun()
-        else: st.error("Неверный пароль.")
+        if password == CORRECT_PASSWORD:
+            st.session_state.is_authenticated = True
+            st.session_state.page = "employee_dashboard"
+            st.rerun()
+        else:
+            st.error("Неверный пароль.")
 
 elif current_page == "client_form":
-    # ... (код без изменений)
-    st.title("📋 Заявка в инженерный отдел ENVIRO.KG"); object_type = st.radio("Тип объекта:", ('Частный дом', 'Коммерческое помещение'), horizontal=True, label_visibility="collapsed"); st.markdown("---")
+    st.title("📋 Заявка в инженерный отдел ENVIRO.KG")
+    object_type = st.radio("Тип объекта:", ("Частный дом", "Коммерческое помещение"), horizontal=True, label_visibility="collapsed")
+    st.markdown("---")
+
     def shared_form_elements():
-        st.subheader("5. Загрузка файлов"); st.caption("Вы можете прикрепить несколько файлов: планы, схемы, фото и т.д.")
+        st.subheader("5. Загрузка файлов")
+        st.caption("Вы можете прикрепить несколько файлов: планы, схемы, фото и т.д.")
         return st.file_uploader(label="**Нажмите, чтобы выбрать файлы, или перетащите их в эту область**", type=["jpg", "png", "jpeg", "pdf", "doc", "docx"], accept_multiple_files=True)
+
     if object_type == "Частный дом":
         with st.form("private_house_form", clear_on_submit=True):
             st.subheader("1. Контактная информация"); name = st.text_input("Имя клиента \*"); phone = st.text_input("Номер телефона \*"); email = st.text_input("Email")
@@ -211,60 +236,89 @@ elif current_page == "client_form":
                 if not company_name or not contact_person or not phone: st.error("Заполните обязательные поля (\*).")
                 else: 
                     project_data = {"object_type": "Коммерческое помещение", "company_name": company_name, "contact_person": contact_person, "phone": phone, "email": email, "address": address, "activity_type": activity_type, "area": float(area), "wishes": wishes, "uploaded_files_info": [{"name": f.name, "size": f.size} for f in uploaded_files]}; create_project(project_data)
-    st.markdown("<hr>", unsafe_allow_html=True); st.markdown('<div style="text-align: center;"><h2>ENVIRO — в действии</h2></div>', unsafe_allow_html=True)
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center;"><h2>ENVIRO — в действии</h2></div>', unsafe_allow_html=True)
 
-elif current_page == "employee_dashboard":
+elif current_page == "employee_dashboard" and st.session_state.get("is_authenticated"):
     st.title("Панель управления ENVIRO")
-    if st.sidebar.button("Выйти"): st.session_state.is_authenticated = False; st.session_state.page = "client_form"; st.rerun()
+    if st.sidebar.button("Выйти"):
+        st.session_state.is_authenticated = False
+        st.session_state.page = "client_form"
+        st.rerun()
     projects = st.session_state.get("projects", [])
     st.subheader("Поиск и фильтрация")
-    col1, col2, col3 = st.columns([2, 1, 1]);
-    with col1: search_query = st.text_input("Найти заявку (по №, имени, адресу, телефону...)", key="search_query")
-    with col2: status_filter = st.selectbox("Фильтр по статусу", ["Все"] + STATUS_OPTIONS, key="status_filter")
-    with col3: engineer_filter = st.selectbox("Фильтр по инженеру", ["Все"] + ENGINEER_OPTIONS, key="engineer_filter")
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        search_query = st.text_input("Найти заявку (по №, имени, адресу, телефону...)", key="search_query")
+    with col2:
+        status_filter = st.selectbox("Фильтр по статусу", ["Все"] + STATUS_OPTIONS, key="status_filter")
+    with col3:
+        engineer_filter = st.selectbox("Фильтр по инженеру", ["Все"] + ENGINEER_OPTIONS, key="engineer_filter")
     filtered_projects = projects
     if search_query:
         search_query = search_query.lower()
         filtered_projects = [p for p in filtered_projects if search_query in str(p.get("id", "")).lower() or search_query in p.get("client_name", "").lower() or search_query in p.get("company_name", "").lower() or search_query in p.get("address", "").lower() or search_query in p.get("phone", "").lower()]
-    if status_filter != "Все": filtered_projects = [p for p in filtered_projects if p.get("status") == status_filter]
-    if engineer_filter != "Все": filtered_projects = [p for p in filtered_projects if p.get("assigned_engineer") == engineer_filter]
+    if status_filter != "Все":
+        filtered_projects = [p for p in filtered_projects if p.get("status") == status_filter]
+    if engineer_filter != "Все":
+        filtered_projects = [p for p in filtered_projects if p.get("assigned_engineer") == engineer_filter]
     st.markdown("---")
     col_header, col_btn = st.columns([3, 1])
-    with col_header: st.subheader("Входящие заявки")
+    with col_header:
+        st.subheader("Входящие заявки")
     with col_btn:
         if filtered_projects:
-            df = pd.DataFrame(filtered_projects); csv_data = df.to_csv(index=False, encoding='utf-8-sig')
-            st.download_button(label="📥 Скачать в CSV", data=csv_data, file_name=f"enviro_projects_{datetime.now().strftime('%Y-%m-%d')}.csv", mime='text/csv', use_container_width=True)
-    if not filtered_projects: st.info("По вашему запросу заявок не найдено.")
+            df = pd.DataFrame(filtered_projects)
+            csv_data = df.to_csv(index=False, encoding="utf-8-sig")
+            st.download_button(label="📥 Скачать в CSV", data=csv_data, file_name=f"enviro_projects_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv", use_container_width=True)
+    if not filtered_projects:
+        st.info("По вашему запросу заявок не найдено.")
     else:
         for project in sorted(filtered_projects, key=lambda p: p["id"], reverse=True):
-            client_id = project.get("client_name") or project.get("company_name", "N/A"); engineer = project.get("assigned_engineer", "Не назначен")
+            client_id = project.get("client_name") or project.get("company_name", "N/A")
+            engineer = project.get("assigned_engineer", "Не назначен")
             with st.expander(f"Заявка №{project['id']} от {project['submission_date']} - {client_id} (Ответственный: {engineer})"):
-                st.metric("Статус", project["status"]); st.write(f"**Тип:** {project['object_type']}")
-                if st.button("Просмотреть детали", key=f"details_btn_{project['id']}"): st.session_state.current_project_id = project["id"]; st.session_state.page = "project_page"; st.session_state.edit_mode = False; st.rerun()
+                st.metric("Статус", project["status"])
+                st.write(f"**Тип:** {project['object_type']}")
+                if st.button("Просмотреть детали", key=f"details_btn_{project['id']}"):
+                    st.session_state.current_project_id = project["id"]
+                    st.session_state.page = "project_page"
+                    st.session_state.edit_mode = False
+                    st.rerun()
 
 elif current_page == "project_page":
     project_id = st.session_state.get("current_project_id")
     current_project = next((p for p in st.session_state.projects if p["id"] == project_id), None)
     if current_project is None:
         st.error("Проект не найден.")
+        if st.button("Вернуться на главную"):
+            st.session_state.page = "employee_dashboard" if st.session_state.get("is_authenticated") else "client_form"
+            st.session_state.current_project_id = None
+            st.rerun()
     else:
         is_auth = st.session_state.get("is_authenticated")
         client_id = current_project.get("client_name") or current_project.get("company_name", "N/A")
         if is_auth:
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
-                if st.button("← Назад к списку заявок"): st.session_state.page = "employee_dashboard"; st.session_state.current_project_id = None; st.session_state.edit_mode = False; st.rerun()
+                if st.button("← Назад к списку заявок"):
+                    st.session_state.page = "employee_dashboard"
+                    st.session_state.current_project_id = None
+                    st.session_state.edit_mode = False
+                    st.rerun()
             with col2:
                 pdf_data = create_project_pdf(current_project)
                 if pdf_data:
                     st.download_button(label="📄 Скачать в PDF", data=pdf_data, file_name=f"project_{current_project['id']}_{client_id}.pdf", mime="application/pdf", use_container_width=True)
             with col3:
                 button_text = "❌ Отмена" if st.session_state.edit_mode else "✏️ Редактировать заявку"
-                if st.button(button_text, use_container_width=True): st.session_state.edit_mode = not st.session_state.edit_mode; st.rerun()
-        st.title(f"Страница проекта: {client_id}"); st.markdown(f"Заявка №{current_project['id']} от {current_project['submission_date']}"); st.markdown("---")
+                if st.button(button_text, use_container_width=True):
+                    st.session_state.edit_mode = not st.session_state.edit_mode
+                    st.rerun()
+        st.title(f"Страница проекта: {client_id}")
+        st.markdown(f"Заявка №{current_project['id']} от {current_project['submission_date']}")
+        st.markdown("---")
         if st.session_state.edit_mode and is_auth:
-            # ... (код формы редактирования без изменений)
             st.subheader("📝 Редактирование заявки")
             with st.form("edit_project_form"):
                 st.info("Вы находитесь в режиме редактирования. Внесите изменения и нажмите 'Сохранить'.")
@@ -289,7 +343,6 @@ elif current_page == "project_page":
                     elif current_project.get("object_type") == "Коммерческое помещение": current_project["company_name"] = company_name; current_project["contact_person"] = contact_person; current_project["area"] = area; current_project["activity_type"] = activity_type
                     save_projects(st.session_state.projects); st.session_state.edit_mode = False; st.success("Заявка успешно обновлена!"); time.sleep(1); st.rerun()
         else:
-            # ... (код режима просмотра без изменений)
             st.subheader("1. Статус заявки"); st.success(current_project.get("status", "N/A")); st.info(current_project.get("status_desc", "")); st.markdown("---")
             with st.expander("2. Показать/скрыть детали заявки", expanded=True):
                 field_map = {"object_type": "Тип объекта", "client_name": "Имя клиента", "company_name": "Название компании", "contact_person": "Контактное лицо", "phone": "Номер телефона", "email": "Email", "address": "Адрес", "area": "Площадь (м²)", "plot_size": "Размер участка (соток)", "floors": "Этажность", "insulation": "Утепление", "boiler_location": "Расположение котельной", "activity_type": "Тип деятельности", "heating_type": "Вид отопления зимой", "cooling_type": "Вид охлаждения летом", "power_phases": "Количество фаз", "coal_usage": "Расход угля в мес. (тонн)", "energy_usage_kwh": "Расход кВт*ч в мес.", "energy_usage_som": "Расход на энергию в мес. (сом)", "wishes": "Пожелания", "questions": "Вопросы"}
@@ -298,7 +351,6 @@ elif current_page == "project_page":
                 with col1: st.markdown("##### **Общая информация**"); [display_field(current_project, key, field_map[key]) for key in ["object_type", "client_name", "company_name", "contact_person", "phone", "email", "address", "activity_type"] if key in current_project]
                 with col2: st.markdown("##### **Параметры и системы**"); [display_field(current_project, key, field_map[key]) for key in ["area", "plot_size", "floors", "insulation", "boiler_location", "heating_type", "cooling_type", "power_phases", "coal_usage", "energy_usage_kwh", "energy_usage_som"] if key in current_project]; st.markdown("##### **Дополнительно от клиента**"); [display_field(current_project, key, field_map[key]) for key in ["wishes", "questions"] if key in current_project]
         if is_auth:
-            # ... (код блоков управления, комментариев, файлов и чата без изменений)
             st.markdown("---"); st.subheader("3. Управление проектом (внутренняя информация)")
             try: current_status_index = STATUS_OPTIONS.index(current_project.get("status"))
             except ValueError: current_status_index = 0
