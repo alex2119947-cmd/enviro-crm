@@ -7,11 +7,12 @@ import os
 import time
 from datetime import datetime
 
+import pandas as pd  # <-- НОВАЯ БИБЛИОТЕКА
 import requests
 import streamlit as st
 
 # ==============================================================================
-# Конфигурация
+# Конфигурация (без изменений)
 # ==============================================================================
 DATA_FILE = "projects.json"
 UPLOAD_DIR = "file_uploads"
@@ -20,17 +21,16 @@ STATUS_OPTIONS = ["На рассмотрении у инженера", "В ра�
 ENGINEER_OPTIONS = ["Не назначен", "Азамат К.", "Тимур М.", "Евгений П.", "Другой специалист"]
 
 # ==============================================================================
-# Настройка Telegram
+# Настройка Telegram (без изменений)
 # ==============================================================================
 try:
     TELEGRAM_TOKEN = st.secrets["TELEGRAM_TOKEN"]
     TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
 except (KeyError, FileNotFoundError):
-    TELEGRAM_TOKEN = None
-    TELEGRAM_CHAT_ID = None
+    TELEGRAM_TOKEN = None; TELEGRAM_CHAT_ID = None
 
 # ==============================================================================
-# Инициализация
+# Инициализация (без изменений)
 # ==============================================================================
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 st.set_page_config(page_title="CRM ENVIRO.KG", layout="wide", initial_sidebar_state="collapsed")
@@ -80,7 +80,7 @@ def handle_role_change():
     st.session_state.current_project_id = None; st.session_state.edit_mode = False
 
 st.sidebar.title("Навигация"); st.sidebar.radio("Выберите вашу роль:", ("Новый клиент", "Сотрудник ENVIRO"), key="role_selector", on_change=handle_role_change)
-st.sidebar.info("Версия: 5.5 (Поиск и Фильтры)")
+st.sidebar.info("Версия: 5.6 (Экспорт в CSV)")
 
 # ==============================================================================
 # Основная логика отображения страниц
@@ -96,15 +96,13 @@ if current_page == "login":
 
 # --- СТРАНИЦА КЛИЕНТА (ФОРМЫ) ---
 elif current_page == "client_form":
-    st.title("📋 Заявка в инженерный отдел ENVIRO.KG")
-    object_type = st.radio("Тип объекта:", ('Частный дом', 'Коммерческое помещение'), horizontal=True, label_visibility="collapsed")
-    st.markdown("---")
+    # ... (код без изменений)
+    st.title("📋 Заявка в инженерный отдел ENVIRO.KG"); object_type = st.radio("Тип объекта:", ('Частный дом', 'Коммерческое помещение'), horizontal=True, label_visibility="collapsed"); st.markdown("---")
     def shared_form_elements():
         st.subheader("5. Загрузка файлов"); st.caption("Вы можете прикрепить несколько файлов: планы, схемы, фото и т.д.")
         return st.file_uploader(label="**Нажмите, чтобы выбрать файлы, или перетащите их в эту область**", type=["jpg", "png", "jpeg", "pdf", "doc", "docx"], accept_multiple_files=True)
     if object_type == "Частный дом":
         with st.form("private_house_form", clear_on_submit=True):
-            # ... (код формы без изменений)
             st.subheader("1. Контактная информация"); name = st.text_input("Имя клиента \*"); phone = st.text_input("Номер телефона \*"); email = st.text_input("Email")
             st.subheader("2. Информация об объекте"); address = st.text_input("Точный адрес \*"); col1, col2 = st.columns(2)
             with col1: area = st.number_input("Площадь дома (м²)", min_value=0.0, step=1.0); plot_size = st.number_input("Размер участка (в сотках)", min_value=0.0, step=0.1)
@@ -119,7 +117,6 @@ elif current_page == "client_form":
                     project_data = {"object_type": "Частный дом", "client_name": name, "phone": phone, "email": email, "address": address, "area": float(area), "plot_size": float(plot_size), "floors": floors, "insulation": insulation, "boiler_location": boiler_location, "heating_type": heating_type, "power_phases": power_phases, "cooling_type": cooling_type, "coal_usage": float(coal_usage), "energy_usage_kwh": float(energy_usage_kwh), "energy_usage_som": float(energy_usage_som), "wishes": wishes, "questions": questions, "uploaded_files_info": [{"name": f.name, "size": f.size} for f in uploaded_files]}; create_project(project_data)
     else:
         with st.form("commercial_form", clear_on_submit=True):
-            # ... (код формы без изменений)
             st.subheader("1. Контактная информация"); company_name = st.text_input("Название компании \*"); contact_person = st.text_input("Контактное лицо \*"); phone = st.text_input("Номер телефона \*"); email = st.text_input("Email")
             st.subheader("2. Информация об объекте"); address = st.text_input("Адрес объекта \*"); activity_type = st.text_input("Тип деятельности", placeholder="Например, кафе, офис, производство"); area = st.number_input("Общая площадь (м²)", min_value=0.0, step=1.0)
             st.subheader("3. Дополнительно"); wishes = st.text_area("Ваши пожелания и технические требования"); uploaded_files = shared_form_elements()
@@ -136,55 +133,45 @@ elif current_page == "employee_dashboard" and st.session_state.get("is_authentic
     if st.sidebar.button("Выйти"): st.session_state.is_authenticated = False; st.session_state.page = "client_form"; st.rerun()
 
     projects = st.session_state.get("projects", [])
-    
-    # <<< ОСНОВНЫЕ ИЗМЕНЕНИЯ ЗДЕСЬ >>>
     st.subheader("Поиск и фильтрация")
-    
     col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
-        search_query = st.text_input("Найти заявку (по №, имени, адресу, телефону...)", key="search_query")
-    with col2:
-        status_filter = st.selectbox("Фильтр по статусу", ["Все"] + STATUS_OPTIONS, key="status_filter")
-    with col3:
-        engineer_filter = st.selectbox("Фильтр по инженеру", ["Все"] + ENGINEER_OPTIONS, key="engineer_filter")
+    with col1: search_query = st.text_input("Найти заявку (по №, имени, адресу, телефону...)", key="search_query")
+    with col2: status_filter = st.selectbox("Фильтр по статусу", ["Все"] + STATUS_OPTIONS, key="status_filter")
+    with col3: engineer_filter = st.selectbox("Фильтр по инженеру", ["Все"] + ENGINEER_OPTIONS, key="engineer_filter")
     
     filtered_projects = projects
-    # Логика поиска
     if search_query:
         search_query = search_query.lower()
-        filtered_projects = [
-            p for p in filtered_projects if
-            search_query in str(p.get("id", "")).lower() or
-            search_query in p.get("client_name", "").lower() or
-            search_query in p.get("company_name", "").lower() or
-            search_query in p.get("address", "").lower() or
-            search_query in p.get("phone", "").lower()
-        ]
-    # Логика фильтрации по статусу
-    if status_filter != "Все":
-        filtered_projects = [p for p in filtered_projects if p.get("status") == status_filter]
-    # Логика фильтрации по инженеру
-    if engineer_filter != "Все":
-        filtered_projects = [p for p in filtered_projects if p.get("assigned_engineer") == engineer_filter]
-
+        filtered_projects = [p for p in filtered_projects if search_query in str(p.get("id", "")).lower() or search_query in p.get("client_name", "").lower() or search_query in p.get("company_name", "").lower() or search_query in p.get("address", "").lower() or search_query in p.get("phone", "").lower()]
+    if status_filter != "Все": filtered_projects = [p for p in filtered_projects if p.get("status") == status_filter]
+    if engineer_filter != "Все": filtered_projects = [p for p in filtered_projects if p.get("assigned_engineer") == engineer_filter]
+    
     st.markdown("---")
-    st.subheader("Входящие заявки")
+    
+    # <<< ОСНОВНЫЕ ИЗМЕНЕНИЯ ЗДЕСЬ >>>
+    col_header, col_btn = st.columns([3, 1])
+    with col_header: st.subheader("Входящие заявки")
+    with col_btn:
+        if filtered_projects:
+            # Преобразуем данные в DataFrame
+            df = pd.DataFrame(filtered_projects)
+            # Конвертируем в CSV. Кодировка 'utf-8-sig' важна для Excel
+            csv_data = df.to_csv(index=False, encoding='utf-8-sig')
+            st.download_button(
+                label="📥 Скачать в CSV",
+                data=csv_data,
+                file_name=f"enviro_projects_{datetime.now().strftime('%Y-%m-%d')}.csv",
+                mime='text/csv',
+                use_container_width=True
+            )
 
-    if not filtered_projects:
-        st.info("По вашему запросу заявок не найдено.")
+    if not filtered_projects: st.info("По вашему запросу заявок не найдено.")
     else:
-        # Отображаем отфильтрованный список
         for project in sorted(filtered_projects, key=lambda p: p["id"], reverse=True):
-            client_id = project.get("client_name") or project.get("company_name", "N/A")
-            engineer = project.get("assigned_engineer", "Не назначен")
+            client_id = project.get("client_name") or project.get("company_name", "N/A"); engineer = project.get("assigned_engineer", "Не назначен")
             with st.expander(f"Заявка №{project['id']} от {project['submission_date']} - {client_id} (Ответственный: {engineer})"):
-                st.metric("Статус", project["status"])
-                st.write(f"**Тип:** {project['object_type']}")
-                if st.button("Просмотреть детали", key=f"details_btn_{project['id']}"):
-                    st.session_state.current_project_id = project["id"]
-                    st.session_state.page = "project_page"
-                    st.session_state.edit_mode = False
-                    st.rerun()
+                st.metric("Статус", project["status"]); st.write(f"**Тип:** {project['object_type']}")
+                if st.button("Просмотреть детали", key=f"details_btn_{project['id']}"): st.session_state.current_project_id = project["id"]; st.session_state.page = "project_page"; st.session_state.edit_mode = False; st.rerun()
 
 # --- СТРАНИЦА ДЕТАЛЕЙ ПРОЕКТА ---
 elif current_page == "project_page":
@@ -242,7 +229,7 @@ elif current_page == "project_page":
                 col1, col2 = st.columns(2)
                 def display_field(project, key, label): value = project.get(key); display_value = value if value not in [None, ""] else "_не заполнено_"; st.markdown(f"**{label}:**"); st.write(display_value)
                 with col1:
-                    st.markdown("##### **Общая информация**")
+                    st.markdown("##### **Общая информация**");
                     for key in ["object_type", "client_name", "company_name", "contact_person", "phone", "email", "address", "activity_type"]:
                         if key in current_project: display_field(current_project, key, field_map[key])
                 with col2:
@@ -270,7 +257,7 @@ elif current_page == "project_page":
                 new_note_text = st.text_area("Написать новый комментарий (виден только сотрудникам):")
                 attached_files = st.file_uploader(label="Прикрепить файлы к комментарию (сметы, фото и т.д.):", accept_multiple_files=True, key=f"internal_uploader_{project_id}")
                 if st.form_submit_button("Добавить комментарий") and (new_note_text or attached_files):
-                    attachments_info = []
+                    attachments_info = [];
                     for uploaded_file in attached_files:
                         unique_filename = f"{project_id}_{int(time.time())}_{uploaded_file.name}"; save_path = os.path.join(UPLOAD_DIR, unique_filename)
                         with open(save_path, "wb") as f: f.write(uploaded_file.getbuffer())
