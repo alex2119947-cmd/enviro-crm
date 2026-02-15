@@ -10,7 +10,6 @@ from datetime import datetime
 import pandas as pd
 import requests
 import streamlit as st
-from fpdf import FPDF
 
 # ==============================================================================
 # Конфигурация
@@ -25,7 +24,6 @@ STATUS_OPTIONS = [
 ENGINEER_OPTIONS = [
     "Не назначен", "Азамат К.", "Тимур М.", "Евгений П.", "Другой специалист"
 ]
-FONT_PATH = "DejaVuSans.ttf"
 
 # ==============================================================================
 # Настройка Telegram
@@ -79,33 +77,6 @@ def create_project(data):
     send_telegram_notification(notification_message)
     st.session_state.projects = all_projects; st.session_state.current_project_id = new_project["id"]; st.session_state.page = "project_page"; st.rerun()
 
-def create_project_pdf(project_data):
-    pdf = FPDF()
-    pdf.add_page()
-    if not os.path.exists(FONT_PATH):
-        st.error(f"Шрифт не найден: {FONT_PATH}. PDF не может быть создан с кириллицей.")
-        return None
-    pdf.add_font("DejaVu", "", FONT_PATH, uni=True)
-    pdf.set_font("DejaVu", "", 14)
-    client_name = project_data.get("client_name") or project_data.get("company_name", "N/A")
-    pdf.set_font_size(20)
-    pdf.cell(0, 10, f"Заявка №{project_data.get('id', 'N/A')} - {client_name}", 0, 1, "C")
-    pdf.set_font_size(10)
-    pdf.cell(0, 10, f"Дата: {project_data.get('submission_date', '')} | Статус: {project_data.get('status', '')}", 0, 1, "C")
-    pdf.ln(10)
-
-    def add_row(label, value):
-        pdf.set_font("DejaVu", "", 12)
-        pdf.cell(60, 10, str(label), border=0)
-        # <<< ИСПРАВЛЕНИЕ ЗДЕСЬ: Явно указываем ширину второй колонки >>>
-        pdf.multi_cell(130, 10, str(value) if value not in [None, ""] else "_не заполнено_", border=0, align='L')
-
-    field_map = { "object_type": "Тип объекта", "client_name": "Имя клиента", "company_name": "Название компании", "contact_person": "Контактное лицо", "phone": "Номер телефона", "email": "Email", "address": "Адрес", "area": "Площадь (м²)", "plot_size": "Размер участка (соток)", "floors": "Этажность", "insulation": "Утепление", "boiler_location": "Расположение котельной", "activity_type": "Тип деятельности", "heating_type": "Вид отопления зимой", "cooling_type": "Вид охлаждения летом", "power_phases": "Количество фаз", "coal_usage": "Расход угля (тонн/мес)", "energy_usage_kwh": "Расход кВт*ч/мес", "energy_usage_som": "Расход на энергию (сом/мес)", "wishes": "Пожелания", "questions": "Вопросы" }
-    for key, label in field_map.items():
-        if key in project_data:
-            add_row(f"{label}:", project_data[key])
-    return pdf.output(dest="S").encode("latin1")
-
 # ==============================================================================
 # Инициализация Session State
 # ==============================================================================
@@ -125,7 +96,7 @@ def handle_role_change():
     st.session_state.edit_mode = False
 
 st.sidebar.title("Навигация"); st.sidebar.radio("Выберите вашу роль:", ("Новый клиент", "Сотрудник ENVIRO"), key="role_selector", on_change=handle_role_change)
-st.sidebar.info("Версия: 6.0 (Финал)")
+st.sidebar.info("Версия: 6.0 (Стабильная)")
 
 # ==============================================================================
 # Основная логика отображения страниц
@@ -207,13 +178,10 @@ elif current_page == "project_page":
         is_auth = st.session_state.get("is_authenticated")
         client_id = current_project.get("client_name") or current_project.get("company_name", "N/A")
         if is_auth:
-            col1, col2, col3 = st.columns([2, 1, 1])
+            col1, col2 = st.columns([3, 1])
             with col1:
                 if st.button("← Назад к списку заявок"): st.session_state.page = "employee_dashboard"; st.session_state.current_project_id = None; st.session_state.edit_mode = False; st.rerun()
             with col2:
-                pdf_data = create_project_pdf(current_project)
-                if pdf_data: st.download_button(label="📄 Скачать в PDF", data=pdf_data, file_name=f"project_{current_project['id']}_{client_id}.pdf", mime="application/pdf", use_container_width=True)
-            with col3:
                 button_text = "❌ Отмена" if st.session_state.edit_mode else "✏️ Редактировать заявку"
                 if st.button(button_text, use_container_width=True): st.session_state.edit_mode = not st.session_state.edit_mode; st.rerun()
         st.title(f"Страница проекта: {client_id}"); st.markdown(f"Заявка №{current_project['id']} от {current_project['submission_date']}"); st.markdown("---")
