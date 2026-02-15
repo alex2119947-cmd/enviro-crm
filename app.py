@@ -96,7 +96,7 @@ def handle_role_change():
     st.session_state.edit_mode = False
 
 st.sidebar.title("Навигация"); st.sidebar.radio("Выберите вашу роль:", ("Новый клиент", "Сотрудник ENVIRO"), key="role_selector", on_change=handle_role_change)
-st.sidebar.info("Версия: 6.0 (Стабильная)")
+st.sidebar.info("Версия: 6.1 (Очистка UI)")
 
 # ==============================================================================
 # Основная логика отображения страниц
@@ -215,8 +215,18 @@ elif current_page == "project_page":
                 field_map = {"object_type": "Тип объекта", "client_name": "Имя клиента", "company_name": "Название компании", "contact_person": "Контактное лицо", "phone": "Номер телефона", "email": "Email", "address": "Адрес", "area": "Площадь (м²)", "plot_size": "Размер участка (соток)", "floors": "Этажность", "insulation": "Утепление", "boiler_location": "Расположение котельной", "activity_type": "Тип деятельности", "heating_type": "Вид отопления зимой", "cooling_type": "Вид охлаждения летом", "power_phases": "Количество фаз", "coal_usage": "Расход угля в мес. (тонн)", "energy_usage_kwh": "Расход кВт*ч в мес.", "energy_usage_som": "Расход на энергию в мес. (сом)", "wishes": "Пожелания", "questions": "Вопросы"}
                 col1, col2 = st.columns(2)
                 def display_field(project, key, label): value = project.get(key); display_value = value if value not in [None, ""] else "_не заполнено_"; st.markdown(f"**{label}:**"); st.write(display_value)
-                with col1: st.markdown("##### **Общая информация**"); [display_field(current_project, key, field_map[key]) for key in ["object_type", "client_name", "company_name", "contact_person", "phone", "email", "address", "activity_type"] if key in current_project]
-                with col2: st.markdown("##### **Параметры и системы**"); [display_field(current_project, key, field_map[key]) for key in ["area", "plot_size", "floors", "insulation", "boiler_location", "heating_type", "cooling_type", "power_phases", "coal_usage", "energy_usage_kwh", "energy_usage_som"] if key in current_project]; st.markdown("##### **Дополнительно от клиента**"); [display_field(current_project, key, field_map[key]) for key in ["wishes", "questions"] if key in current_project]
+                # <<< ИСПРАВЛЕНИЕ ЗДЕСЬ: заменены list comprehension на обычные циклы for >>>
+                with col1: 
+                    st.markdown("##### **Общая информация**")
+                    for key in ["object_type", "client_name", "company_name", "contact_person", "phone", "email", "address", "activity_type"]:
+                        if key in current_project: display_field(current_project, key, field_map[key])
+                with col2: 
+                    st.markdown("##### **Параметры и системы**")
+                    for key in ["area", "plot_size", "floors", "insulation", "boiler_location", "heating_type", "cooling_type", "power_phases", "coal_usage", "energy_usage_kwh", "energy_usage_som"]:
+                        if key in current_project: display_field(current_project, key, field_map[key])
+                    st.markdown("##### **Дополнительно от клиента**")
+                    for key in ["wishes", "questions"]:
+                        if key in current_project: display_field(current_project, key, field_map[key])
         if is_auth:
             st.markdown("---"); st.subheader("3. Управление проектом (внутренняя информация)")
             try: current_status_index = STATUS_OPTIONS.index(current_project.get("status"))
