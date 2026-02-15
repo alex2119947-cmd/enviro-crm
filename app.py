@@ -347,4 +347,4 @@ elif current_page == "project_page":
             role = "assistant" if is_auth else "user"
             chat_history.append({"role": role, "content": prompt})
             if role == "user": send_telegram_notification(f"💬 *Новое сообщение от клиента* в заявке №{current_project['id']}\n\n👤 *Клиент:* {client_id}\n✉️ *Сообщение:* {prompt}")
-            save_projects(st.session_state.projects); st.rerun(
+            save_projects(st.session_state.projects); st.rerun()
