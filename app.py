@@ -19,19 +19,11 @@ DATA_FILE = "projects.json"
 UPLOAD_DIR = "file_uploads"
 CORRECT_PASSWORD = "zxenv2026"
 STATUS_OPTIONS = [
-    "На рассмотрении у инженера",
-    "В работе",
-    "Требуются уточнения от клиента",
-    "Расчет готов",
-    "Проект завершен",
-    "Отменен",
+    "На рассмотрении у инженера", "В работе", "Требуются уточнения от клиента",
+    "Расчет готов", "Проект завершен", "Отменен"
 ]
 ENGINEER_OPTIONS = [
-    "Не назначен",
-    "Азамат К.",
-    "Тимур М.",
-    "Евгений П.",
-    "Другой специалист",
+    "Не назначен", "Азамат К.", "Тимур М.", "Евгений П.", "Другой специалист"
 ]
 FONT_PATH = "DejaVuSans.ttf"
 
@@ -42,8 +34,7 @@ try:
     TELEGRAM_TOKEN = st.secrets["TELEGRAM_TOKEN"]
     TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
 except (KeyError, FileNotFoundError):
-    TELEGRAM_TOKEN = None
-    TELEGRAM_CHAT_ID = None
+    TELEGRAM_TOKEN, TELEGRAM_CHAT_ID = None, None
 
 # ==============================================================================
 # Инициализация
@@ -59,9 +50,10 @@ st.set_page_config(
 
 def send_telegram_notification(message):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID: return
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"; payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try: requests.post(url, json=payload, timeout=5)
-    except requests.exceptions.RequestException as e: print(f"Ошибка отправки Telegram: {e}")
+    except requests.exceptions.RequestException as e: print(f"Ошибка Telegram: {e}")
 
 def load_projects():
     if not os.path.exists(DATA_FILE): return []
@@ -73,8 +65,14 @@ def save_projects(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=4)
 
 def create_project(data):
-    all_projects = st.session_state.get("projects", []); max_id = max(p["id"] for p in all_projects) if all_projects else 0
-    new_project = {"id": max_id + 1, "submission_date": datetime.now().strftime("%Y-%m-%d %H:%M"), "status": "На рассмотрении у инженера", "status_desc": "Ожидайте ответа...", "chat_history": [{"role": "assistant", "content": f"Здравствуйте, {data.get('client_name') or data.get('contact_person')}! Ваша заявка принята."}], "assigned_engineer": "Не назначен", "internal_notes": []}
+    all_projects = st.session_state.get("projects", [])
+    max_id = max(p["id"] for p in all_projects) if all_projects else 0
+    new_project = {
+        "id": max_id + 1, "submission_date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "status": "На рассмотрении у инженера", "status_desc": "Ожидайте ответа...",
+        "chat_history": [{"role": "assistant", "content": f"Здравствуйте, {data.get('client_name') or data.get('contact_person')}! Ваша заявка принята."}],
+        "assigned_engineer": "Не назначен", "internal_notes": []
+    }
     new_project.update(data); all_projects.append(new_project); save_projects(all_projects)
     client_name = data.get("client_name") or data.get("company_name", "N/A"); address = data.get("address", "Адрес не указан")
     notification_message = (f"🔔 *Новая заявка №{new_project['id']}*\n\n" f"👤 *Клиент:* {client_name}\n" f"🏠 *Объект:* {data.get('object_type')}\n" f"📍 *Адрес:* {address}")
@@ -97,13 +95,12 @@ def create_project_pdf(project_data):
     pdf.ln(10)
 
     def add_row(label, value):
-        pdf.set_font("DejaVu", "", 13)
-        pdf.cell(60, 10, str(label), border=0)
         pdf.set_font("DejaVu", "", 12)
-        # <<< ИСПРАВЛЕНИЕ ЗДЕСЬ: Заменено 1 на align='L' >>>
-        pdf.multi_cell(0, 10, str(value) if value not in [None, ""] else "_не заполнено_", border=0, align='L')
+        pdf.cell(60, 10, str(label), border=0)
+        # <<< ИСПРАВЛЕНИЕ ЗДЕСЬ: Явно указываем ширину второй колонки >>>
+        pdf.multi_cell(130, 10, str(value) if value not in [None, ""] else "_не заполнено_", border=0, align='L')
 
-    field_map = {"object_type": "Тип объекта", "client_name": "Имя клиента", "company_name": "Название компании", "contact_person": "Контактное лицо", "phone": "Номер телефона", "email": "Email", "address": "Адрес", "area": "Площадь (м²)", "plot_size": "Размер участка (соток)", "floors": "Этажность", "insulation": "Утепление", "boiler_location": "Расположение котельной", "activity_type": "Тип деятельности", "heating_type": "Вид отопления зимой", "cooling_type": "Вид охлаждения летом", "power_phases": "Количество фаз", "coal_usage": "Расход угля (тонн/мес)", "energy_usage_kwh": "Расход кВт*ч/мес", "energy_usage_som": "Расход на энергию (сом/мес)", "wishes": "Пожелания", "questions": "Вопросы"}
+    field_map = { "object_type": "Тип объекта", "client_name": "Имя клиента", "company_name": "Название компании", "contact_person": "Контактное лицо", "phone": "Номер телефона", "email": "Email", "address": "Адрес", "area": "Площадь (м²)", "plot_size": "Размер участка (соток)", "floors": "Этажность", "insulation": "Утепление", "boiler_location": "Расположение котельной", "activity_type": "Тип деятельности", "heating_type": "Вид отопления зимой", "cooling_type": "Вид охлаждения летом", "power_phases": "Количество фаз", "coal_usage": "Расход угля (тонн/мес)", "energy_usage_kwh": "Расход кВт*ч/мес", "energy_usage_som": "Расход на энергию (сом/мес)", "wishes": "Пожелания", "questions": "Вопросы" }
     for key, label in field_map.items():
         if key in project_data:
             add_row(f"{label}:", project_data[key])
@@ -128,7 +125,7 @@ def handle_role_change():
     st.session_state.edit_mode = False
 
 st.sidebar.title("Навигация"); st.sidebar.radio("Выберите вашу роль:", ("Новый клиент", "Сотрудник ENVIRO"), key="role_selector", on_change=handle_role_change)
-st.sidebar.info("Версия: 5.9 (Финальный фикс)")
+st.sidebar.info("Версия: 6.0 (Финал)")
 
 # ==============================================================================
 # Основная логика отображения страниц
@@ -172,7 +169,7 @@ elif current_page == "client_form":
     st.markdown("<hr>", unsafe_allow_html=True); st.markdown('<div style="text-align: center;"><h2>ENVIRO — в действии</h2></div>', unsafe_allow_html=True)
 
 elif current_page == "employee_dashboard" and st.session_state.get("is_authenticated"):
-    st.title("Панель управления ENVIRO");
+    st.title("Панель управления ENVIRO")
     if st.sidebar.button("Выйти"): st.session_state.is_authenticated = False; st.session_state.page = "client_form"; st.rerun()
     projects = st.session_state.get("projects", []); st.subheader("Поиск и фильтрация")
     col1, col2, col3 = st.columns([2, 1, 1])
