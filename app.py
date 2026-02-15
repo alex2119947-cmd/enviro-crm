@@ -39,25 +39,21 @@ st.set_page_config(page_title="CRM ENVIRO.KG", layout="wide", initial_sidebar_st
 # Функции (без изменений)
 # ==============================================================================
 def send_telegram_notification(message):
-    # ... (код без изменений)
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID: return
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"; payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try: requests.post(url, json=payload, timeout=5)
     except requests.exceptions.RequestException as e: print(f"Ошибка отправки Telegram: {e}")
 
 def load_projects():
-    # ... (код без изменений)
     if not os.path.exists(DATA_FILE): return []
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f: return json.load(f)
     except (json.JSONDecodeError, FileNotFoundError): return []
 
 def save_projects(data):
-    # ... (код без изменений)
     with open(DATA_FILE, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=4)
 
 def create_project(data):
-    # ... (код без изменений)
     all_projects = st.session_state.get("projects", []); max_id = max(p["id"] for p in all_projects) if all_projects else 0
     new_project = {"id": max_id + 1, "submission_date": datetime.now().strftime("%Y-%m-%d %H:%M"), "status": "На рассмотрении у инженера", "status_desc": "Ожидайте ответа...", "chat_history": [{"role": "assistant", "content": f"Здравствуйте, {data.get('client_name') or data.get('contact_person')}! Ваша заявка принята."}], "assigned_engineer": "Не назначен", "internal_notes": []}
     new_project.update(data); all_projects.append(new_project); save_projects(all_projects)
@@ -84,7 +80,7 @@ def handle_role_change():
     st.session_state.current_project_id = None; st.session_state.edit_mode = False
 
 st.sidebar.title("Навигация"); st.sidebar.radio("Выберите вашу роль:", ("Новый клиент", "Сотрудник ENVIRO"), key="role_selector", on_change=handle_role_change)
-st.sidebar.info("Версия: 5.4 (Фикс типов)")
+st.sidebar.info("Версия: 5.5 (Поиск и Фильтры)")
 
 # ==============================================================================
 # Основная логика отображения страниц
@@ -106,10 +102,9 @@ elif current_page == "client_form":
     def shared_form_elements():
         st.subheader("5. Загрузка файлов"); st.caption("Вы можете прикрепить несколько файлов: планы, схемы, фото и т.д.")
         return st.file_uploader(label="**Нажмите, чтобы выбрать файлы, или перетащите их в эту область**", type=["jpg", "png", "jpeg", "pdf", "doc", "docx"], accept_multiple_files=True)
-    
-    # <<< ИЗМЕНЕНИЕ ЗДЕСЬ: Приводим все number_input к float >>>
     if object_type == "Частный дом":
         with st.form("private_house_form", clear_on_submit=True):
+            # ... (код формы без изменений)
             st.subheader("1. Контактная информация"); name = st.text_input("Имя клиента \*"); phone = st.text_input("Номер телефона \*"); email = st.text_input("Email")
             st.subheader("2. Информация об объекте"); address = st.text_input("Точный адрес \*"); col1, col2 = st.columns(2)
             with col1: area = st.number_input("Площадь дома (м²)", min_value=0.0, step=1.0); plot_size = st.number_input("Размер участка (в сотках)", min_value=0.0, step=0.1)
@@ -124,6 +119,7 @@ elif current_page == "client_form":
                     project_data = {"object_type": "Частный дом", "client_name": name, "phone": phone, "email": email, "address": address, "area": float(area), "plot_size": float(plot_size), "floors": floors, "insulation": insulation, "boiler_location": boiler_location, "heating_type": heating_type, "power_phases": power_phases, "cooling_type": cooling_type, "coal_usage": float(coal_usage), "energy_usage_kwh": float(energy_usage_kwh), "energy_usage_som": float(energy_usage_som), "wishes": wishes, "questions": questions, "uploaded_files_info": [{"name": f.name, "size": f.size} for f in uploaded_files]}; create_project(project_data)
     else:
         with st.form("commercial_form", clear_on_submit=True):
+            # ... (код формы без изменений)
             st.subheader("1. Контактная информация"); company_name = st.text_input("Название компании \*"); contact_person = st.text_input("Контактное лицо \*"); phone = st.text_input("Номер телефона \*"); email = st.text_input("Email")
             st.subheader("2. Информация об объекте"); address = st.text_input("Адрес объекта \*"); activity_type = st.text_input("Тип деятельности", placeholder="Например, кафе, офис, производство"); area = st.number_input("Общая площадь (м²)", min_value=0.0, step=1.0)
             st.subheader("3. Дополнительно"); wishes = st.text_area("Ваши пожелания и технические требования"); uploaded_files = shared_form_elements()
@@ -136,18 +132,63 @@ elif current_page == "client_form":
 
 # --- ПАНЕЛЬ УПРАВЛЕНИЯ СОТРУДНИКА ---
 elif current_page == "employee_dashboard" and st.session_state.get("is_authenticated"):
-    st.title("Панель управления ENVIRO"); st.subheader("Входящие заявки")
+    st.title("Панель управления ENVIRO")
     if st.sidebar.button("Выйти"): st.session_state.is_authenticated = False; st.session_state.page = "client_form"; st.rerun()
-    if not st.session_state.projects: st.info("Пока нет ни одной заявки от клиентов.")
+
+    projects = st.session_state.get("projects", [])
+    
+    # <<< ОСНОВНЫЕ ИЗМЕНЕНИЯ ЗДЕСЬ >>>
+    st.subheader("Поиск и фильтрация")
+    
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        search_query = st.text_input("Найти заявку (по №, имени, адресу, телефону...)", key="search_query")
+    with col2:
+        status_filter = st.selectbox("Фильтр по статусу", ["Все"] + STATUS_OPTIONS, key="status_filter")
+    with col3:
+        engineer_filter = st.selectbox("Фильтр по инженеру", ["Все"] + ENGINEER_OPTIONS, key="engineer_filter")
+    
+    filtered_projects = projects
+    # Логика поиска
+    if search_query:
+        search_query = search_query.lower()
+        filtered_projects = [
+            p for p in filtered_projects if
+            search_query in str(p.get("id", "")).lower() or
+            search_query in p.get("client_name", "").lower() or
+            search_query in p.get("company_name", "").lower() or
+            search_query in p.get("address", "").lower() or
+            search_query in p.get("phone", "").lower()
+        ]
+    # Логика фильтрации по статусу
+    if status_filter != "Все":
+        filtered_projects = [p for p in filtered_projects if p.get("status") == status_filter]
+    # Логика фильтрации по инженеру
+    if engineer_filter != "Все":
+        filtered_projects = [p for p in filtered_projects if p.get("assigned_engineer") == engineer_filter]
+
+    st.markdown("---")
+    st.subheader("Входящие заявки")
+
+    if not filtered_projects:
+        st.info("По вашему запросу заявок не найдено.")
     else:
-        for project in sorted(st.session_state.projects, key=lambda p: p["id"], reverse=True):
-            client_id = project.get("client_name") or project.get("company_name", "N/A"); engineer = project.get("assigned_engineer", "Не назначен")
+        # Отображаем отфильтрованный список
+        for project in sorted(filtered_projects, key=lambda p: p["id"], reverse=True):
+            client_id = project.get("client_name") or project.get("company_name", "N/A")
+            engineer = project.get("assigned_engineer", "Не назначен")
             with st.expander(f"Заявка №{project['id']} от {project['submission_date']} - {client_id} (Ответственный: {engineer})"):
-                st.metric("Статус", project["status"]); st.write(f"**Тип:** {project['object_type']}")
-                if st.button("Просмотреть детали", key=f"details_btn_{project['id']}"): st.session_state.current_project_id = project["id"]; st.session_state.page = "project_page"; st.session_state.edit_mode = False; st.rerun()
+                st.metric("Статус", project["status"])
+                st.write(f"**Тип:** {project['object_type']}")
+                if st.button("Просмотреть детали", key=f"details_btn_{project['id']}"):
+                    st.session_state.current_project_id = project["id"]
+                    st.session_state.page = "project_page"
+                    st.session_state.edit_mode = False
+                    st.rerun()
 
 # --- СТРАНИЦА ДЕТАЛЕЙ ПРОЕКТА ---
 elif current_page == "project_page":
+    # ... (код страницы проекта без изменений)
     project_id = st.session_state.get("current_project_id")
     current_project = next((p for p in st.session_state.projects if p["id"] == project_id), None)
     if current_project is None:
@@ -164,8 +205,6 @@ elif current_page == "project_page":
                 button_text = "❌ Отмена" if st.session_state.edit_mode else "✏️ Редактировать заявку"
                 if st.button(button_text, use_container_width=True): st.session_state.edit_mode = not st.session_state.edit_mode; st.rerun()
         st.title(f"Страница проекта: {client_id}"); st.markdown(f"Заявка №{current_project['id']} от {current_project['submission_date']}"); st.markdown("---")
-        
-        # <<< ОСНОВНЫЕ ИЗМЕНЕНИЯ ЗДЕСЬ >>>
         if st.session_state.edit_mode and is_auth:
             st.subheader("📝 Редактирование заявки")
             with st.form("edit_project_form"):
@@ -173,7 +212,6 @@ elif current_page == "project_page":
                 if current_project.get("object_type") == "Частный дом":
                     st.subheader("1. Контактная информация"); name = st.text_input("Имя клиента", value=current_project.get("client_name", "")); phone = st.text_input("Телефон", value=current_project.get("phone", "")); email = st.text_input("Email", value=current_project.get("email", ""))
                     st.subheader("2. Информация об объекте"); address = st.text_input("Адрес", value=current_project.get("address", "")); col_area, col_plot = st.columns(2)
-                    # Приводим value к float()
                     with col_area: area = st.number_input("Площадь дома (м²)", value=float(current_project.get("area", 0.0)), step=1.0)
                     with col_plot: plot_size = st.number_input("Размер участка (соток)", value=float(current_project.get("plot_size", 0.0)), step=0.1)
                     floors_options = ["1 этаж", "2 этажа", "3 этажа", "Более 3"]; floors_index = floors_options.index(current_project.get("floors", "1 этаж")) if current_project.get("floors") in floors_options else 0
@@ -189,7 +227,6 @@ elif current_page == "project_page":
                     st.subheader("2. Информация об объекте"); address = st.text_input("Адрес", value=current_project.get("address", "")); area = st.number_input("Общая площадь (м²)", value=float(current_project.get("area", 0.0)), step=1.0); activity_type = st.text_input("Тип деятельности", value=current_project.get("activity_type", ""))
                     st.subheader("3. Дополнительно"); wishes = st.text_area("Пожелания", value=current_project.get("wishes", ""))
                 st.markdown("---")
-                # Кнопка теперь внутри формы
                 if st.form_submit_button("Сохранить изменения", use_container_width=True, type="primary"):
                     current_project["phone"] = phone; current_project["email"] = email; current_project["address"] = address; current_project["wishes"] = wishes
                     if current_project.get("object_type") == "Частный дом":
@@ -198,10 +235,9 @@ elif current_page == "project_page":
                         current_project["company_name"] = company_name; current_project["contact_person"] = contact_person; current_project["area"] = area; current_project["activity_type"] = activity_type
                     save_projects(st.session_state.projects); st.session_state.edit_mode = False; st.success("Заявка успешно обновлена!"); time.sleep(1); st.rerun()
         else:
-            # --- РЕЖИМ ПРОСМОТРА (код без изменений) ---
+            # --- РЕЖИМ ПРОСМОТРА ---
             st.subheader("1. Статус заявки"); st.success(current_project.get("status", "N/A")); st.info(current_project.get("status_desc", "")); st.markdown("---")
             with st.expander("2. Показать/скрыть детали заявки", expanded=True):
-                # ... (код отображения деталей)
                 field_map = {"object_type": "Тип объекта", "client_name": "Имя клиента", "company_name": "Название компании", "contact_person": "Контактное лицо", "phone": "Номер телефона", "email": "Email", "address": "Адрес", "area": "Площадь (м²)", "plot_size": "Размер участка (соток)", "floors": "Этажность", "insulation": "Утепление", "boiler_location": "Расположение котельной", "activity_type": "Тип деятельности", "heating_type": "Вид отопления зимой", "cooling_type": "Вид охлаждения летом", "power_phases": "Количество фаз", "coal_usage": "Расход угля в мес. (тонн)", "energy_usage_kwh": "Расход кВт*ч в мес.", "energy_usage_som": "Расход на энергию в мес. (сом)", "wishes": "Пожелания", "questions": "Вопросы"}
                 col1, col2 = st.columns(2)
                 def display_field(project, key, label): value = project.get(key); display_value = value if value not in [None, ""] else "_не заполнено_"; st.markdown(f"**{label}:**"); st.write(display_value)
@@ -216,11 +252,9 @@ elif current_page == "project_page":
                     st.markdown("##### **Дополнительно от клиента**")
                     for key in ["wishes", "questions"]:
                         if key in current_project: display_field(current_project, key, field_map[key])
-
-        # --- БЛОКИ УПРАВЛЕНИЯ, КОММЕНТАРИЕВ, ФАЙЛОВ И ЧАТА (без изменений) ---
         if is_auth:
+            # --- БЛОКИ УПРАВЛЕНИЯ, КОММЕНТАРИЕВ, ФАЙЛОВ И ЧАТА ---
             st.markdown("---"); st.subheader("3. Управление проектом (внутренняя информация)")
-            # ... (остальной код этих блоков)
             try: current_status_index = STATUS_OPTIONS.index(current_project.get("status"))
             except ValueError: current_status_index = 0
             try: current_engineer_index = ENGINEER_OPTIONS.index(current_project.get("assigned_engineer"))
