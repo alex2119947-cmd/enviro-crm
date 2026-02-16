@@ -85,7 +85,7 @@ def create_project(data, uploaded_files):
     save_projects_to_db(all_projects)
     client_name = data.get("client_name") or data.get("company_name", "N/A"); address = data.get("address", "Адрес не указан")
     send_telegram_notification(f"🔔 *Новая заявка №{new_project_id}*\n\n👤 *Клиент:* {client_name}\n🏠 *Объект:* {data.get('object_type')}\n📍 *Адрес:* {address}")
-    st.session_state.projects = all_projects; st.session_state.current_project_id = new_project_id; st.session_state.page = "project_page";# st.rerun()
+    st.session_state.projects = all_projects; st.session_state.current_project_id = new_project_id; st.session_state.page = "project_page"; st.rerun()
 
 # ==============================================================================
 # Инициализация Session State
