@@ -14,7 +14,7 @@ from supabase import Client, create_client
 # ==============================================================================
 # Конфигурация
 # ==============================================================================
-UPLOAD_DIR = "file_uploads" # Больше не используется для хранения, но может быть нужен
+UPLOAD_DIR = "file_uploads" 
 CORRECT_PASSWORD = "zxenv2026"
 STATUS_OPTIONS = ["На рассмотрении у инженера", "В работе", "Требуются уточнения от клиента", "Расчет готов", "Проект завершен", "Отменен"]
 ENGINEER_OPTIONS = ["Не назначен", "Азамат К.", "Тимур М.", "Евгений П.", "Другой специалист"]
@@ -27,10 +27,8 @@ SUPABASE_URL = st.secrets.get("SUPABASE_URL")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
 supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY:
-    try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-    except Exception as e:
-        pass # Ошибка будет обработана на страницах, где нужна БД
+    try: supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception: pass
 
 TELEGRAM_TOKEN = st.secrets.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = st.secrets.get("TELEGRAM_CHAT_ID")
@@ -107,7 +105,7 @@ def handle_role_change():
     st.session_state.current_project_id = None; st.session_state.edit_mode = False
 
 st.sidebar.title("Навигация"); st.sidebar.radio("Выберите вашу роль:", ("Новый клиент", "Сотрудник ENVIRO"), key="role_selector", on_change=handle_role_change)
-st.sidebar.info("Версия: 8.1 (Финальный фикс)")
+st.sidebar.info("Версия: 8.2 (Финал)")
 
 # ==============================================================================
 # Основная логика отображения страниц
@@ -141,6 +139,7 @@ elif current_page == "client_form":
                 if not supabase: st.error("База данных не подключена. Отправка невозможна.")
                 elif not name or not phone or not address: st.error("Заполните обязательные поля (\*).")
                 else: 
+                    # <<< ИСПРАВЛЕНИЕ ЗДЕСЬ >>>
                     project_data = {"object_type": "Частный дом", "client_name": name, "phone": phone, "email": email, "address": address, "area": float(area), "plot_size": float(plot_size), "floors": floors, "insulation": insulation, "boiler_location": boiler_location, "heating_type": heating_type, "power_phases": power_phases, "cooling_type": cooling_type, "coal_usage": float(coal_usage), "energy_usage_kwh": float(energy_usage_kwh), "energy_usage_som": float(energy_usage_som), "wishes": wishes, "questions": questions}
                     create_project(project_data, uploaded_files)
     else:
@@ -152,16 +151,18 @@ elif current_page == "client_form":
                 if not supabase: st.error("База данных не подключена. Отправка невозможна.")
                 elif not company_name or not contact_person or not phone: st.error("Заполните обязательные поля (\*).")
                 else: 
+                    # <<< ИСПРАВЛЕНИЕ ЗДЕСЬ >>>
                     project_data = {"object_type": "Коммерческое помещение", "company_name": company_name, "contact_person": contact_person, "phone": phone, "email": email, "address": address, "activity_type": activity_type, "area": float(area), "wishes": wishes}
                     create_project(project_data, uploaded_files)
     st.markdown("<hr>", unsafe_allow_html=True); st.markdown('<div style="text-align: center;"><h2>ENVIRO — в действии</h2></div>', unsafe_allow_html=True)
 
 elif supabase:
     if current_page == "employee_dashboard" and st.session_state.get("is_authenticated"):
+        # ... (Код панели управления без изменений)
         st.title("Панель управления ENVIRO")
         if st.sidebar.button("Выйти"): st.session_state.is_authenticated = False; st.session_state.page = "client_form"; st.rerun()
         projects = st.session_state.get("projects", []); st.subheader("Поиск и фильтрация")
-        col1, col2, col3 = st.columns([2, 1, 1])
+        col1, col2, col3 = st.columns([2, 1, 1]);
         with col1: search_query = st.text_input("Найти заявку (по №, имени, адресу, телефону...)", key="search_query")
         with col2: status_filter = st.selectbox("Фильтр по статусу", ["Все"] + STATUS_OPTIONS, key="status_filter")
         with col3: engineer_filter = st.selectbox("Фильтр по инженеру", ["Все"] + ENGINEER_OPTIONS, key="engineer_filter")
@@ -187,16 +188,15 @@ elif supabase:
                     if st.button("Просмотреть детали", key=f"details_btn_{project['id']}"): st.session_state.current_project_id = project["id"]; st.session_state.page = "project_page"; st.session_state.edit_mode = False; st.rerun()
 
     elif current_page == "project_page":
-        project_id = st.session_state.get("current_project_id")
-        current_project = next((p for p in st.session_state.projects if p["id"] == project_id), None)
+        # ... (Код страницы проекта без изменений)
+        project_id = st.session_state.get("current_project_id"); current_project = next((p for p in st.session_state.projects if p["id"] == project_id), None)
         if current_project is None:
             st.error("Проект не найден.");
             if st.button("Вернуться на главную"): st.session_state.page = "employee_dashboard" if st.session_state.get("is_authenticated") else "client_form"; st.session_state.current_project_id = None; st.rerun()
         else:
-            is_auth = st.session_state.get("is_authenticated")
-            client_id = current_project.get("client_name") or current_project.get("company_name", "N/A")
+            is_auth = st.session_state.get("is_authenticated"); client_id = current_project.get("client_name") or current_project.get("company_name", "N/A")
             if is_auth:
-                col1, col2 = st.columns([3, 1])
+                col1, col2 = st.columns([3, 1]);
                 with col1:
                     if st.button("← Назад к списку заявок"): st.session_state.page = "employee_dashboard"; st.session_state.current_project_id = None; st.session_state.edit_mode = False; st.rerun()
                 with col2:
@@ -204,6 +204,7 @@ elif supabase:
                     if st.button(button_text, use_container_width=True): st.session_state.edit_mode = not st.session_state.edit_mode; st.rerun()
             st.title(f"Страница проекта: {client_id}"); st.markdown(f"Заявка №{current_project['id']} от {current_project['submission_date']}"); st.markdown("---")
             if st.session_state.edit_mode and is_auth:
+                # ... (Код формы редактирования без изменений)
                 st.subheader("📝 Редактирование заявки")
                 with st.form("edit_project_form"):
                     st.info("Вы находитесь в режиме редактирования. Внесите изменения и нажмите 'Сохранить'.")
@@ -233,17 +234,8 @@ elif supabase:
                     field_map = {"object_type": "Тип объекта", "client_name": "Имя клиента", "company_name": "Название компании", "contact_person": "Контактное лицо", "phone": "Номер телефона", "email": "Email", "address": "Адрес", "area": "Площадь (м²)", "plot_size": "Размер участка (соток)", "floors": "Этажность", "insulation": "Утепление", "boiler_location": "Расположение котельной", "activity_type": "Тип деятельности", "heating_type": "Вид отопления зимой", "cooling_type": "Вид охлаждения летом", "power_phases": "Количество фаз", "coal_usage": "Расход угля в мес. (тонн)", "energy_usage_kwh": "Расход кВт*ч в мес.", "energy_usage_som": "Расход на энергию в мес. (сом)", "wishes": "Пожелания", "questions": "Вопросы"}
                     col1, col2 = st.columns(2)
                     def display_field(project, key, label): value = project.get(key); display_value = value if value not in [None, ""] else "_не заполнено_"; st.markdown(f"**{label}:**"); st.write(display_value)
-                    with col1: 
-                        st.markdown("##### **Общая информация**")
-                        for key in ["object_type", "client_name", "company_name", "contact_person", "phone", "email", "address", "activity_type"]:
-                            if key in current_project: display_field(current_project, key, field_map[key])
-                    with col2: 
-                        st.markdown("##### **Параметры и системы**")
-                        for key in ["area", "plot_size", "floors", "insulation", "boiler_location", "heating_type", "cooling_type", "power_phases", "coal_usage", "energy_usage_kwh", "energy_usage_som"]:
-                            if key in current_project: display_field(current_project, key, field_map[key])
-                        st.markdown("##### **Дополнительно от клиента**")
-                        for key in ["wishes", "questions"]:
-                            if key in current_project: display_field(current_project, key, field_map[key])
+                    with col1: st.markdown("##### **Общая информация**"); [display_field(current_project, key, field_map[key]) for key in ["object_type", "client_name", "company_name", "contact_person", "phone", "email", "address", "activity_type"] if key in current_project]
+                    with col2: st.markdown("##### **Параметры и системы**"); [display_field(current_project, key, field_map[key]) for key in ["area", "plot_size", "floors", "insulation", "boiler_location", "heating_type", "cooling_type", "power_phases", "coal_usage", "energy_usage_kwh", "energy_usage_som"] if key in current_project]; st.markdown("##### **Дополнительно от клиента**"); [display_field(current_project, key, field_map[key]) for key in ["wishes", "questions"] if key in current_project]
             if is_auth:
                 st.markdown("---"); st.subheader("3. Управление проектом (внутренняя информация)")
                 try: current_status_index = STATUS_OPTIONS.index(current_project.get("status"))
